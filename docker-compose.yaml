@@ -1,0 +1,44 @@
+version: '3'
+
+services:
+  # localstack:
+  #   image: 'localstack/localstack:0.13.0'
+  #   restart: always
+  #   environment:
+  #     - AWS_DEFAULT_REGION=sa-east-1
+  #     - SERVICES=dynamodb
+  #   ports:
+  #     - "4566-4599:4566-4599"
+  #     - "${PORT_WEB_UI-8080}:${PORT_WEB_UI-8080}"
+  #   volumes:
+  #     - ./docker/aws:/docker-entrypoint-initaws.d
+
+  # prometheus:
+  #   image: prom/prometheus
+  #   ports:
+  #     - "9090:9090"
+  #   volumes:
+  #     - "./docker/prometheus.yml:/etc/prometheus/prometheus.yml"
+
+  # grafana:
+  #   image: grafana/grafana
+  #   user: 1000:1000
+  #   ports:
+  #     - "3000:3000"
+  #   # volumes:
+  #     # - "./docker/volumes/grafana:/var/lib/grafana"
+  
+  router:
+    build: .
+    environment:
+      - TEST_ENV=Test
+    ports:
+      - "8080:8080"
+    deploy:
+      resources:
+        reservations:
+          cpus: 0.5
+          memory: 512M  
+        limits:
+          cpus: 1
+          memory: 1024M
