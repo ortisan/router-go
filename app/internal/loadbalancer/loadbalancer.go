@@ -3,32 +3,40 @@ package loadbalancer
 // Forked by https://github.com/kasvith/simplelb
 
 import (
-	"log"
+	"fmt"
+	"io/ioutil"
 	"net"
 	"net/http"
-	"net/http/httputil"
 	"net/url"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/gin-gonic/gin"
+	"github.com/rs/zerolog/log"
+
+	errApp "github.com/ortisan/router-go/internal/error"
 	"github.com/ortisan/router-go/internal/integration"
+	"github.com/ortisan/router-go/internal/util"
 )
 
 const (
 	Attempts int = iota
 	Retry
-	HealthCheckTicksTime = 2 * time.Minute
+	HealthCheckTicksTime = 30 * time.Second
+	PrefixConfig         = "/services/prefix/"
+	MaxRetries           = 3
+	BackoffTimeout       = 10 * time.Millisecond
 )
 
 // Backend holds the data about a server
 type Backend struct {
-	URL           *url.URL
 	ServicePrefix string
+	URL           *url.URL
 	ZoneAws       string
 	Alive         bool
 	mux           sync.RWMutex
-	ReverseProxy  *httputil.ReverseProxy
 }
 
 // SetAlive for this backend
@@ -48,19 +56,40 @@ func (b *Backend) IsAlive() (alive bool) {
 
 // ServerPool holds information about reachable backends
 type ServerPool struct {
-	backends []*Backend
-	current  uint64
-}
-
-// Pools by prefix
-type ServerPools struct {
-	ServersByPrefix  map[string][]*Backend
-	ServersByAwsZone map[string][]*Backend
+	ServicePrefix string
+	backends      []*Backend
+	current       uint64
 }
 
 // AddBackend to the server pool
 func (s *ServerPool) AddBackend(backend *Backend) {
 	s.backends = append(s.backends, backend)
+}
+
+// Pools by prefix
+type ServerPools struct {
+	ServerPoolByPrefix  map[string]*ServerPool
+	ServerPoolByAwsZone map[string]*ServerPool
+}
+
+func NewServerPools() *ServerPools {
+	return &ServerPools{ServerPoolByPrefix: make(map[string]*ServerPool), ServerPoolByAwsZone: make(map[string]*ServerPool)}
+}
+
+func (s *ServerPools) AddServerPoolByPrefix(servicePrefix string, serverPool *ServerPool) {
+	s.ServerPoolByPrefix[servicePrefix] = serverPool
+}
+
+func (s *ServerPools) AddServerPoolByAwsZone(prefix string, serverPool *ServerPool) {
+	s.ServerPoolByAwsZone[prefix] = serverPool
+}
+
+func (s *ServerPools) GetServerPoolByPrefix(prefix string) (*ServerPool, error) {
+	serverPool := s.ServerPoolByPrefix[prefix]
+	if serverPool == nil {
+		return nil, errApp.NewBadRequestError(fmt.Sprintf("Router can't process this request. Services of the prefix %s not found", prefix), nil)
+	}
+	return serverPool, nil
 }
 
 // NextIndex atomically increase the counter and return an index
@@ -95,6 +124,46 @@ func (s *ServerPool) GetNextPeer() *Backend {
 	return nil
 }
 
+func (s *ServerPool) HandleRequest(c *gin.Context, pathUri string, method string, headers map[string][]string) {
+
+	peer := s.GetNextPeer()
+	if peer == nil {
+		panic(errApp.NewGenericError("No backend servers was found", nil))
+	}
+
+	requestUri := fmt.Sprintf("%s%s", peer.URL.String(), pathUri)
+
+	client := &http.Client{}
+	req, err := http.NewRequest(method, requestUri, c.Request.Body)
+	if err != nil {
+		panic(errApp.NewGenericError("Error to create request", err))
+	}
+
+	// Copying headers
+	for name, values := range headers {
+		for _, value := range values {
+			log.Debug().Str(name, value).Msg("Iterating headers...")
+			found := HeadersDisabledInRedirection()(name)
+			if !found {
+				req.Header.Set(name, value)
+			}
+		}
+	}
+
+	resp, err := client.Do(req) // Call API
+	if err != nil {
+		panic(errApp.NewIntegrationError("Error to call API.", err))
+	}
+
+	defer resp.Body.Close() // Defer will close after this function ends
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		panic(errApp.NewIntegrationError("Error read response body.", err))
+	}
+
+	c.Data(resp.StatusCode, resp.Header.Get("Content-Type"), body) // Data is returned
+}
+
 // HealthCheck pings the backends and update the status
 func (s *ServerPool) HealthCheck() {
 	for _, b := range s.backends {
@@ -104,7 +173,7 @@ func (s *ServerPool) HealthCheck() {
 		if !alive {
 			status = "down"
 		}
-		log.Printf("%s [%s]\n", b.URL, status)
+		log.Debug().Str("backend", b.URL.String()).Str("status", status).Msg("Health check result")
 	}
 }
 
@@ -125,28 +194,44 @@ func GetRetryFromContext(r *http.Request) int {
 }
 
 // lb load balances the incoming request
-func lb(w http.ResponseWriter, r *http.Request) {
-	attempts := GetAttemptsFromContext(r)
-	if attempts > 3 {
-		log.Printf("%s(%s) Max attempts reached, terminating\n", r.RemoteAddr, r.URL.Path)
-		http.Error(w, "Service not available", http.StatusServiceUnavailable)
-		return
+func HandleRequest(c *gin.Context) {
+
+	resource := c.Param("resource")
+	apiPaths := strings.Split(resource, "/")
+
+	r := c.Request
+
+	if len(apiPaths) < 2 {
+		panic(errApp.NewBadRequestError("Router can't process this request. Format of url must be /{prefix api}/{all_rest}", nil))
+	}
+	servicePrefix := apiPaths[1] // in url "http://xpto.com/api1/xpto", gets the "api1" value
+
+	serverPool, err := serverPools.GetServerPoolByPrefix(servicePrefix)
+	if err != nil {
+		panic(errApp.NewBadRequestError("Cannot find server pool", err))
 	}
 
-	peer := serverPool.GetNextPeer()
-	if peer != nil {
-		peer.ReverseProxy.ServeHTTP(w, r)
+	retries := GetRetryFromContext(r)
+
+	if retries < MaxRetries {
+		select {
+		case <-time.After(BackoffTimeout):
+			serverPool.HandleRequest(c, util.GetSubstringAfter(resource, servicePrefix), r.Method, r.Header)
+		}
 		return
 	}
-	http.Error(w, "Service not available", http.StatusServiceUnavailable)
 }
 
 // isAlive checks whether a backend is Alive by establishing a TCP connection
 func isBackendAlive(u *url.URL) bool {
 	timeout := 2 * time.Second
-	conn, err := net.DialTimeout("tcp", u.Host, timeout)
+	var address = u.Host
+	if !strings.Contains(address, ":") {
+		address = fmt.Sprintf("%s:%s", address, "80")
+	}
+	conn, err := net.DialTimeout("tcp", address, timeout)
 	if err != nil {
-		log.Println("Site unreachable, error: ", err)
+		log.Warn().Err(err).Msg("Site unreachable")
 		return false
 	}
 	defer conn.Close()
@@ -159,17 +244,57 @@ func healthCheck() {
 	for {
 		select {
 		case <-t.C:
-			log.Println("Starting health check...")
-			serverPool.HealthCheck()
-			log.Println("Health check completed")
+			log.Debug().Msg("Starting health check...")
+			for servicePrefix, serverPool := range serverPools.ServerPoolByPrefix {
+				log.Debug().Str("prefix", servicePrefix).Msg("Health checking services of this prefix")
+				serverPool.HealthCheck()
+			}
+			log.Debug().Msg("Health check completed")
 		}
 	}
 }
 
-func ConfigureLB() {
+func HeadersDisabledInRedirection() func(string) bool {
+	innerMap := map[string]int{
+		"Accept-Encoding": 1, // This header transform encodings
+	}
+	return func(key string) bool {
 
-	integration.GetValue(PrefixServicesConfig + prefixService)
-
+		_, found := innerMap[key]
+		return found
+	}
 }
 
-var serverPool ServerPool
+func ConfigLoadBalancer() {
+
+	servicesByPrefix, err := integration.GetValuesPrefixed(PrefixConfig)
+	if err != nil {
+		panic(err)
+	}
+
+	for configServer, serversUrlString := range servicesByPrefix {
+		servicePrefix := util.GetSubstringAfter(configServer, PrefixConfig)
+		serversUrls := strings.Split(serversUrlString, ",")
+
+		var serverPool *ServerPool
+		serverPool, err = serverPools.GetServerPoolByPrefix(servicePrefix)
+		if err != nil {
+			serverPool = &ServerPool{ServicePrefix: servicePrefix}
+			serverPools.AddServerPoolByPrefix(servicePrefix, serverPool)
+		}
+
+		for _, serverUrlStr := range serversUrls {
+			serverUrl, err := url.Parse(serverUrlStr)
+
+			if err != nil {
+				panic(err)
+			}
+			serverPool.AddBackend(&Backend{ServicePrefix: servicePrefix, URL: serverUrl, Alive: true})
+		}
+	}
+
+	// start health checking
+	go healthCheck()
+}
+
+var serverPools *ServerPools = NewServerPools()

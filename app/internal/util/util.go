@@ -7,12 +7,12 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-func GetSubstringAfter(value string, a string) string {
-	pos := strings.LastIndex(value, a)
+func GetSubstringAfter(value string, matchString string) string {
+	pos := strings.LastIndex(value, matchString)
 	if pos == -1 {
 		return ""
 	}
-	adjustedPos := pos + len(a)
+	adjustedPos := pos + len(matchString)
 	if adjustedPos >= len(value) {
 		return ""
 	}
