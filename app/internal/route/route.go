@@ -13,11 +13,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
-const (
-	UrlApp               = "https://jsonplaceholder.typicode.com"
-	PrefixServicesConfig = "services.prefix."
-)
-
 func ErrorHandle() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		defer func() {
