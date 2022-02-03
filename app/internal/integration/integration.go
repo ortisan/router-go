@@ -26,17 +26,16 @@ func GetEtcdCli() (context.Context, *clientv3.Client, error) {
 
 	if err != nil {
 		errW := errApp.NewIntegrationError("Error to connect with etcd server.", err)
-		log.Error().Stack().Err(err).Msg(errW.(errApp.IntegrationError).ErrorSt.Error())
 		return nil, nil, errW
 	}
 
 	return ctx, cli, nil
 }
 
-func GetValue(key string) (string, error) {
+func GetValues(key string) ([]string, error) {
 	ctx, cli, err := GetEtcdCli()
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	defer cli.Close()
 
@@ -45,14 +44,40 @@ func GetValue(key string) (string, error) {
 	gr, err := cli.Get(ctx, key)
 	if err != nil {
 		errW := errApp.NewIntegrationError("Error to connect with etcd server.", err)
-		log.Error().Stack().Err(err).Msg(errW.(errApp.IntegrationError).ErrorSt.Error())
-		return "", errW
+		return nil, errW
 	}
-	value := string(gr.Kvs[0].Value)
 
-	log.Debug().Str("key", key).Str("value", value).Int64("revision", gr.Header.Revision).Msg("Value loaded from etcd.")
+	var values []string
 
-	return value, nil
+	for _, kv := range gr.Kvs {
+		values = append(values, string(kv.Value))
+	}
+
+	log.Debug().Str("key", key).Strs("values", values).Int64("revision", gr.Header.Revision).Msg("Values loaded from etcd.")
+
+	return values, nil
+}
+
+func GetValuesPrefixed(keyPrefix string) (map[string]string, error) {
+	ctx, cli, err := GetEtcdCli()
+	if err != nil {
+		return nil, err
+	}
+	defer cli.Close()
+
+	log.Debug().Str("key", keyPrefix).Msg("Trying get value in etcd...")
+
+	gr, err := cli.Get(ctx, keyPrefix, clientv3.WithPrefix())
+	if err != nil {
+		errW := errApp.NewIntegrationError("Error to connect with etcd server.", err)
+		return nil, errW
+	}
+
+	mapKv := make(map[string]string)
+	for _, kv := range gr.Kvs {
+		mapKv[string(kv.Key)] = string(kv.Value)
+	}
+	return mapKv, nil
 }
 
 func PutValue(key string, value string) error {
@@ -67,7 +92,6 @@ func PutValue(key string, value string) error {
 
 	if err != nil {
 		errW := errApp.NewIntegrationError("Error to connect with etcd server.", err)
-		log.Error().Stack().Err(err).Msg(errW.(errApp.IntegrationError).ErrorSt.Error())
 		return errW
 	}
 
