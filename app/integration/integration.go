@@ -2,7 +2,6 @@ package integration
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"time"
 
@@ -42,10 +41,12 @@ func GetValue(key string) (string, error) {
 	defer cli.Close()
 
 	log.Debug().Str("key", key).Msg("Trying get value in etcd...")
+
 	gr, _ := cli.Get(ctx, key)
 	value := string(gr.Kvs[0].Value)
-	fmt.Println("Value: ", string(gr.Kvs[0].Value), "Revision: ", gr.Header.Revision)
+
 	log.Debug().Str("key", key).Str("value", value).Int64("revision", gr.Header.Revision).Msg("Value loaded from etcd.")
+
 	return value, nil
 }
 
@@ -56,11 +57,11 @@ func PutValue(key string, value string) error {
 	}
 	defer cli.Close()
 
+	log.Debug().Str("key", key).Str("value", value).Msg("Trying to put value in etcd...")
 	resp, err := cli.Put(ctx, key, value)
 	if resp != nil {
 		log.Debug().Str("key", key).Str("value", value).Msg("Value inserted...")
 	}
 
 	return err
-
 }

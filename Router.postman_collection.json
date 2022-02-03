@@ -17,7 +17,7 @@
 					}
 				],
 				"url": {
-					"raw": "http://localhost:8080/api/posts",
+					"raw": "http://localhost:8080/api/app1/posts",
 					"protocol": "http",
 					"host": [
 						"localhost"
@@ -25,6 +25,7 @@
 					"port": "8080",
 					"path": [
 						"api",
+						"app1",
 						"posts"
 					]
 				}
@@ -43,7 +44,7 @@
 					}
 				],
 				"url": {
-					"raw": "http://localhost:8080/api/posts/1",
+					"raw": "http://localhost:8080/api/app1/posts/1",
 					"protocol": "http",
 					"host": [
 						"localhost"
@@ -51,6 +52,7 @@
 					"port": "8080",
 					"path": [
 						"api",
+						"app1",
 						"posts",
 						"1"
 					]
@@ -74,7 +76,7 @@
 					"raw": "{\n    \"userId\": 2,\n    \"title\": \"sunt aut facere repellat provident occaecati excepturi optio reprehenderit\",\n    \"body\": \"quia et suscipit\\nsuscipit recusandae consequuntur expedita et cum\\nreprehenderit molestiae ut ut quas totam\\nnostrum rerum est autem sunt rem eveniet architecto\"\n}"
 				},
 				"url": {
-					"raw": "http://localhost:8080/api/posts",
+					"raw": "http://localhost:8080/api/app1/posts",
 					"protocol": "http",
 					"host": [
 						"localhost"
@@ -82,6 +84,7 @@
 					"port": "8080",
 					"path": [
 						"api",
+						"app1",
 						"posts"
 					]
 				}
@@ -104,7 +107,7 @@
 					"raw": "{\n    \"userId\": 1,\n    \"title\": \"test put\",\n    \"body\": \"testing put\"\n}"
 				},
 				"url": {
-					"raw": "http://localhost:8080/api/posts/1",
+					"raw": "http://localhost:8080/api/app1/posts/1",
 					"protocol": "http",
 					"host": [
 						"localhost"
@@ -112,6 +115,7 @@
 					"port": "8080",
 					"path": [
 						"api",
+						"app1",
 						"posts",
 						"1"
 					]
@@ -135,7 +139,7 @@
 					"raw": "{\n    \"title\": \"test patch\",\n    \"body\": \"testing patch\"\n}"
 				},
 				"url": {
-					"raw": "http://localhost:8080/api/posts/1",
+					"raw": "http://localhost:8080/api/app1/posts/1",
 					"protocol": "http",
 					"host": [
 						"localhost"
@@ -143,6 +147,7 @@
 					"port": "8080",
 					"path": [
 						"api",
+						"app1",
 						"posts",
 						"1"
 					]
@@ -162,7 +167,7 @@
 					}
 				],
 				"url": {
-					"raw": "http://localhost:8080/api/posts/1",
+					"raw": "http://localhost:8080/api/app1/posts/1",
 					"protocol": "http",
 					"host": [
 						"localhost"
@@ -170,6 +175,7 @@
 					"port": "8080",
 					"path": [
 						"api",
+						"app1",
 						"posts",
 						"1"
 					]

@@ -10,6 +10,7 @@ import (
 	"github.com/ortisan/router-go/config"
 	domain "github.com/ortisan/router-go/domain"
 	"github.com/ortisan/router-go/integration"
+	"github.com/ortisan/router-go/util"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/zerolog/log"
 )
@@ -32,9 +33,14 @@ func HeadersDisabledInRedirection() func(string) bool {
 
 func Redirect(c *gin.Context) {
 	resource := c.Param("resource")
-	prefixService := strings.Split(resource, "/")[0]
+	apiPaths := strings.Split(resource, "/")
+	if len(apiPaths) < 2 {
+		c.JSON(http.StatusBadRequest, domain.Error{Message: "Router can't process this request. Format of url must be /{prefix api}/{all_rest}"})
+	}
 
-	urlToRedirect, err := integration.GetValue(PrefixServicesConfig + prefixService)
+	prefixService := apiPaths[1] // in url "http://xpto.com/api1/xpto", gets the "api1" value
+
+	serviceApi, err := integration.GetValue(PrefixServicesConfig + prefixService)
 
 	if err != nil {
 		log.Error().Stack().Err(err).Msg("Error to load service config.")
@@ -42,7 +48,7 @@ func Redirect(c *gin.Context) {
 		return
 	}
 
-	redirectResource := urlToRedirect + resource
+	redirectResource := serviceApi + util.GetSubstringAfter(resource, prefixService)
 	method := c.Request.Method
 	headers := c.Request.Header
 
