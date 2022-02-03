@@ -33,10 +33,10 @@ func GetEtcdCli() (context.Context, *clientv3.Client, error) {
 	return ctx, cli, nil
 }
 
-func GetValue(key string) (string, error) {
+func GetValue(key string) ([]string, error) {
 	ctx, cli, err := GetEtcdCli()
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	defer cli.Close()
 
@@ -46,11 +46,41 @@ func GetValue(key string) (string, error) {
 	if err != nil {
 		errW := errApp.NewIntegrationError("Error to connect with etcd server.", err)
 		log.Error().Stack().Err(err).Msg(errW.(errApp.IntegrationError).ErrorSt.Error())
+		return nil, errW
+	}
+
+	if len(gr.Kvs) > 0 {
+		log.Debug().Str("key", key).Msg("Not found value for this key.")
+		return nil, nil
+	} else {
+		value := string(gr.Kvs[0].Value)
+		var values []string
+		for key, value in
+
+		log.Debug().Str("key", key).Str("value", value).Int64("revision", gr.Header.Revision).Msg("Value loaded from etcd.")
+
+	}
+	return value, nil
+}
+
+func GetValues(keyPrefix string) (string, error) {
+	ctx, cli, err := GetEtcdCli()
+	if err != nil {
+		return "", err
+	}
+	defer cli.Close()
+
+	log.Debug().Str("key", keyPrefix).Msg("Trying get value in etcd...")
+
+	gr, err := cli.Get(ctx, keyPrefix, clientv3.WithPrefix())
+	if err != nil {
+		errW := errApp.NewIntegrationError("Error to connect with etcd server.", err)
+		log.Error().Stack().Err(err).Msg(errW.(errApp.IntegrationError).ErrorSt.Error())
 		return "", errW
 	}
 	value := string(gr.Kvs[0].Value)
 
-	log.Debug().Str("key", key).Str("value", value).Int64("revision", gr.Header.Revision).Msg("Value loaded from etcd.")
+	log.Debug().Str("key", keyPrefix).Str("value", value).Int64("revision", gr.Header.Revision).Msg("Value loaded from etcd.")
 
 	return value, nil
 }

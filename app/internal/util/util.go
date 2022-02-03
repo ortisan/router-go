@@ -22,8 +22,7 @@ func GetSubstringAfter(value string, a string) string {
 func ObjectToJson(object interface{}) []byte {
 	mobj, err := json.Marshal(object)
 	if err != nil {
-		print()
-		log.Error().Stack().Err(err).Msg("Iterating headers...")
+		log.Error().Stack().Err(err).Msg("Error to marshal object")
 		return []byte{}
 	}
 	return mobj

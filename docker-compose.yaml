@@ -42,25 +42,25 @@ services:
       timeout: 10s
       retries: 5
 
-  app:
-    build: .
-    ports:
-      - "8080:8080"
-    deploy:
-      resources:
-        reservations:
-          cpus: 0.5
-          memory: 512M
-        limits:
-          cpus: 1
-          memory: 1024M
-    restart: on-failure
-    depends_on:
-      - etcd
-    links:
-      - etcd
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost8080/metrics"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
+  # app:
+  #   build: .
+  #   ports:
+  #     - "8080:8080"
+  #   deploy:
+  #     resources:
+  #       reservations:
+  #         cpus: 0.5
+  #         memory: 512M
+  #       limits:
+  #         cpus: 1
+  #         memory: 1024M
+  #   restart: on-failure
+  #   depends_on:
+  #     - etcd
+  #   links:
+  #     - etcd
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost8080/metrics"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 5
