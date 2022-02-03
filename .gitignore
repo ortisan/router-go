@@ -23,4 +23,21 @@ go.work
 # Debug executable of vscode
 __debug_bin
 
-docker/volumes
+
+# App
+docker/volumes/grafana/**
+
+
+
+
+
+
+
+
+
+
+
+
+
+## Keep gitkeep ### IMPORTANT: MUST BE IN THE LAST LINE
+!.gitkeep
