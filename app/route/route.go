@@ -4,15 +4,19 @@ import (
 	"io/ioutil"
 	"net/http"
 	"runtime/debug"
+	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/ortisan/router-go/config"
 	domain "github.com/ortisan/router-go/domain"
+	"github.com/ortisan/router-go/integration"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/zerolog/log"
 )
 
 const (
-	UrlApp = "https://jsonplaceholder.typicode.com"
+	UrlApp               = "https://jsonplaceholder.typicode.com"
+	PrefixServicesConfig = "services.prefix."
 )
 
 func HeadersDisabledInRedirection() func(string) bool {
@@ -28,7 +32,17 @@ func HeadersDisabledInRedirection() func(string) bool {
 
 func Redirect(c *gin.Context) {
 	resource := c.Param("resource")
-	redirectResource := UrlApp + resource
+	prefixService := strings.Split(resource, "/")[0]
+
+	urlToRedirect, err := integration.GetValue(PrefixServicesConfig + prefixService)
+
+	if err != nil {
+		log.Error().Stack().Err(err).Msg("Error to load service config.")
+		c.JSON(http.StatusInternalServerError, domain.Error{Message: err.(error).Error(), StackTrace: string(debug.Stack())})
+		return
+	}
+
+	redirectResource := urlToRedirect + resource
 	method := c.Request.Method
 	headers := c.Request.Header
 
@@ -68,7 +82,7 @@ func Redirect(c *gin.Context) {
 	c.Data(resp.StatusCode, resp.Header.Get("Content-Type"), body) // Data is returned
 }
 
-func CreateRoutes() {
+func ConfigServer(config config.Config) {
 	r := gin.Default()
 
 	r.GET("/metrics", gin.WrapH(promhttp.Handler())) // Prometheus metrics
@@ -78,5 +92,5 @@ func CreateRoutes() {
 	r.PATCH("/api/*resource", Redirect)              // By Pass
 	r.DELETE("/api/*resource", Redirect)             // By Pass
 
-	r.Run(":8080") // Listen 8080
+	r.Run(config.ServerAddress) // Listen server
 }

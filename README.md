@@ -7,6 +7,7 @@ go mod init github.com/ortisan/router-go
 go get -u github.com/gin-gonic/gin
 go get -u github.com/prometheus/client_golang/prometheus/promhttp
 go get -u github.com/rs/zerolog/log
+go get go.etcd.io/etcd/client/v3
 ```
 
 ## Running App
