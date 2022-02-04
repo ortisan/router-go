@@ -14,8 +14,10 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/go-redis/redis"
 	"github.com/rs/zerolog/log"
 
+	"github.com/ortisan/router-go/internal/constant"
 	errApp "github.com/ortisan/router-go/internal/error"
 	"github.com/ortisan/router-go/internal/integration"
 	"github.com/ortisan/router-go/internal/util"
@@ -28,6 +30,8 @@ const (
 	PrefixConfig         = "/services/prefix/"
 	MaxRetries           = 3
 	BackoffTimeout       = 10 * time.Millisecond
+	StatusUp             = "up"
+	statusDown           = "down"
 )
 
 // Backend holds the data about a server
@@ -139,12 +143,13 @@ func (s *ServerPool) HandleRequest(c *gin.Context, pathUri string, method string
 		panic(errApp.NewGenericError("Error to create request", err))
 	}
 
+	// Set trace id
+	req.Header.Set(constant.TraceIdHeaderName, c.GetString(constant.TraceIdHeaderName))
 	// Copying headers
 	for name, values := range headers {
 		for _, value := range values {
 			log.Debug().Str(name, value).Msg("Iterating headers...")
-			found := HeadersDisabledInRedirection()(name)
-			if !found {
+			if found := HeadersDisabledInRedirection()(name); !found {
 				req.Header.Set(name, value)
 			}
 		}
@@ -152,28 +157,33 @@ func (s *ServerPool) HandleRequest(c *gin.Context, pathUri string, method string
 
 	resp, err := client.Do(req) // Call API
 	if err != nil {
-		panic(errApp.NewIntegrationError("Error to call API.", err))
+		panic(errApp.NewIntegrationError("Error to call API", err))
 	}
 
 	defer resp.Body.Close() // Defer will close after this function ends
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		panic(errApp.NewIntegrationError("Error read response body.", err))
+		panic(errApp.NewIntegrationError("Error read response body", err))
 	}
 
-	c.Data(resp.StatusCode, resp.Header.Get("Content-Type"), body) // Data is returned
+	c.Data(resp.StatusCode, resp.Header.Get(constant.ContentTypeHeaderName), body) // Data is returned
 }
 
 // HealthCheck pings the backends and update the status
 func (s *ServerPool) HealthCheck() {
 	for _, b := range s.backends {
-		status := "up"
+		status := StatusUp
 		alive := isBackendAlive(b.URL)
-		b.SetAlive(alive)
 		if !alive {
-			status = "down"
+			status = statusDown
 		}
 		log.Debug().Str("backend", b.URL.String()).Str("status", status).Msg("Health check result")
+
+		// Updating server status code on cache db
+		serverId := fmt.Sprintf("servers-%s-%s", s.ServicePrefix, b.URL.String())
+		integration.PutCacheValue(serverId, status)
+		// Update server status code in cache db
+		b.SetAlive(alive)
 	}
 }
 
@@ -238,7 +248,7 @@ func isBackendAlive(u *url.URL) bool {
 	return true
 }
 
-// healthCheck runs a routine for check status of the backends every 2 mins
+// healthCheck runs a routine for check status of the backends every 30 seconds
 func healthCheck() {
 	t := time.NewTicker(HealthCheckTicksTime)
 	for {
@@ -285,11 +295,17 @@ func ConfigLoadBalancer() {
 
 		for _, serverUrlStr := range serversUrls {
 			serverUrl, err := url.Parse(serverUrlStr)
-
 			if err != nil {
 				panic(err)
 			}
-			serverPool.AddBackend(&Backend{ServicePrefix: servicePrefix, URL: serverUrl, Alive: true})
+
+			// Get status from cache db
+			serverId := fmt.Sprintf("servers-%s-%s", servicePrefix, serverUrl)
+			serverStatus, err := integration.GetCacheValue(serverId)
+			if err != nil && err != redis.Nil {
+				panic(err)
+			}
+			serverPool.AddBackend(&Backend{ServicePrefix: servicePrefix, URL: serverUrl, Alive: err == redis.Nil || serverStatus == StatusUp})
 		}
 	}
 

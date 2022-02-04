@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/go-redis/redis"
 	"github.com/ortisan/router-go/internal/config"
 	errApp "github.com/ortisan/router-go/internal/error"
 	"github.com/rs/zerolog/log"
@@ -99,4 +100,49 @@ func PutValue(key string, value string) error {
 	log.Debug().Str("key", key).Str("value", value).Int64("revision", revision).Msg("Value inserted...")
 
 	return nil
+}
+
+func GetRedisCli() (*redis.Client, error) {
+	client := redis.NewClient(&redis.Options{
+		Addr:     config.ConfigObj.Redis.ServerAddress,
+		Password: config.ConfigObj.Redis.Password,
+		DB:       0,
+	})
+
+	return client, nil
+}
+
+func GetCacheValue(key string) (string, error) {
+
+	cli, err := GetRedisCli()
+
+	if err != nil {
+		return "", err
+	}
+	defer cli.Close()
+
+	value, err := cli.Get(key).Result()
+
+	if err != nil {
+		return "", err
+	}
+
+	return value, nil
+}
+
+func PutCacheValue(key string, value string) (string, error) {
+	cli, err := GetRedisCli()
+
+	if err != nil {
+		return "", err
+	}
+	defer cli.Close()
+
+	result, err := cli.Set(key, value, 0*time.Second).Result()
+
+	if err != nil {
+		return "", err
+	}
+
+	return result, nil
 }

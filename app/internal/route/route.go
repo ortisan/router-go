@@ -5,7 +5,9 @@ import (
 	"runtime/debug"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/ortisan/router-go/internal/config"
+	"github.com/ortisan/router-go/internal/constant"
 	"github.com/ortisan/router-go/internal/domain"
 	errApp "github.com/ortisan/router-go/internal/error"
 	"github.com/ortisan/router-go/internal/loadbalancer"
@@ -13,7 +15,16 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
-func ErrorHandle() gin.HandlerFunc {
+func ConfigTraceId() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		defer func() {
+			c.Set(constant.TraceIdHeaderName, uuid.New().String())
+		}()
+		c.Next()
+	}
+}
+
+func ErrorHandler() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		defer func() {
 			if err := recover(); err != nil {
@@ -21,10 +32,10 @@ func ErrorHandle() gin.HandlerFunc {
 				case errApp.IWithMessageAndStatusCode:
 					error := err.(errApp.IWithMessageAndStatusCode)
 					errObj := domain.Error{Message: error.Error(), Cause: error.Cause(), StackTrace: error.StackTrace()}
-					c.Data(error.Status(), c.GetHeader("Content-Type"), util.ObjectToJson(errObj)) // Data is returned
+					c.Data(error.Status(), c.GetHeader(constant.ContentTypeHeaderName), util.ObjectToJson(errObj)) // Data is returned
 				default:
 					errObj := domain.Error{Message: err.(error).Error(), StackTrace: string(debug.Stack())}
-					c.Data(http.StatusInternalServerError, c.GetHeader("Content-Type"), util.ObjectToJson(errObj)) // Data is returned
+					c.Data(http.StatusInternalServerError, c.GetHeader(constant.ContentTypeHeaderName), util.ObjectToJson(errObj)) // Data is returned
 				}
 			}
 		}()
@@ -36,8 +47,9 @@ func ConfigServer() {
 	r := gin.Default()
 
 	// Middlewares
-	r.Use(ErrorHandle()) // Error handling
-	r.Use(gin.Logger())  // Logger request/response
+	r.Use(ConfigTraceId()) // Config TraceId
+	r.Use(ErrorHandler())  // Error handling
+	r.Use(gin.Logger())    // Logger request/response
 
 	// Routes
 	r.GET("/metrics", gin.WrapH(promhttp.Handler()))       // Prometheus metrics

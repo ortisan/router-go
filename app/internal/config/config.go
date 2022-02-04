@@ -5,8 +5,9 @@ import (
 )
 
 type Config struct {
-	App  App  `mapstructure:"app"`
-	Etcd Etcd `mapstructure:"etcd"`
+	App   App   `mapstructure:"app"`
+	Etcd  Etcd  `mapstructure:"etcd"`
+	Redis Redis `mapstructure:"redis"`
 }
 
 type App struct {
@@ -17,8 +18,12 @@ type Etcd struct {
 	Endpoints []string `mapstructure:"server_endpoints"`
 }
 
-func LoadConfig() (config Config) {
+type Redis struct {
+	ServerAddress string `mapstructure:"server_address"`
+	Password      string `mapstructure:"password"`
+}
 
+func LoadConfig() (config Config) {
 	viper.AddConfigPath(".")
 	viper.AddConfigPath("../internal/config/")
 	viper.SetConfigName("config")
