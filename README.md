@@ -31,5 +31,5 @@ go get -u <module>
 # Run main
 go run main.go
 # Build project
-go build go build -o <sh/exe name>
+go build -o <sh/exe name>
 ```
