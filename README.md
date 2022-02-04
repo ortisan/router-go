@@ -12,11 +12,19 @@
 
 - Use postman collection (**Router.postman_collection.json**) to test apis.
 
-- Grafana is enabled on 3000 and Prometheus on 9000
+### Endpoints
+
+| Service    | Endpoint                         |
+|------------|----------------------------------|
+| Prometheus | http://localhost:9000            |
+| Grafana    | http://localhost:3000            |
+| Jaeger     | http://localhost:16686           |
+| Swagger UI | http://localhost:8080/index.html |
+
+
 
 ## TODO
 
-- Jaeger to trace requests
 - New app to control healthcheck (all instances of this app is updating cache - race conditions and multiple calls to backends healthcheck)
 - Run on Kubernetes
 - Performance tests
@@ -32,4 +40,6 @@ go get -u <module>
 go run main.go
 # Build project
 go build -o <sh/exe name>
+# Generate swagger
+swag init -g main.go --output docs
 ```

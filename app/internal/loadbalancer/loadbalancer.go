@@ -14,9 +14,12 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/go-redis/redis"
 	"github.com/rs/zerolog/log"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 
+	"github.com/ortisan/router-go/internal/config"
 	"github.com/ortisan/router-go/internal/constant"
 	errApp "github.com/ortisan/router-go/internal/error"
 	"github.com/ortisan/router-go/internal/integration"
@@ -137,8 +140,15 @@ func (s *ServerPool) HandleRequest(c *gin.Context, pathUri string, method string
 
 	requestUri := fmt.Sprintf("%s%s", peer.URL.String(), pathUri)
 
+	// Tracing this request
+	ctx, span := tracer.Start(c.Request.Context(), "HandleRequest", trace.WithAttributes(
+		attribute.String("ServicePrefix", s.ServicePrefix)),
+	)
+
+	defer span.End()
+
 	client := &http.Client{}
-	req, err := http.NewRequest(method, requestUri, c.Request.Body)
+	req, err := http.NewRequestWithContext(ctx, method, requestUri, c.Request.Body)
 	if err != nil {
 		panic(errApp.NewGenericError("Error to create request", err))
 	}
@@ -203,34 +213,7 @@ func GetRetryFromContext(r *http.Request) int {
 	return 0
 }
 
-// lb load balances the incoming request
-func HandleRequest(c *gin.Context) {
-
-	resource := c.Param("resource")
-	apiPaths := strings.Split(resource, "/")
-
-	r := c.Request
-
-	if len(apiPaths) < 2 {
-		panic(errApp.NewBadRequestError("Router can't process this request. Format of url must be /{prefix api}/{all_rest}", nil))
-	}
-	servicePrefix := apiPaths[1] // in url "http://xpto.com/api1/xpto", gets the "api1" value
-
-	serverPool, err := serverPools.GetServerPoolByPrefix(servicePrefix)
-	if err != nil {
-		panic(errApp.NewBadRequestError("Cannot find server pool", err))
-	}
-
-	retries := GetRetryFromContext(r)
-
-	if retries < MaxRetries {
-		select {
-		case <-time.After(BackoffTimeout):
-			serverPool.HandleRequest(c, util.GetSubstringAfter(resource, servicePrefix), r.Method, r.Header)
-		}
-		return
-	}
-}
+var tracer = otel.Tracer(config.ConfigObj.App.Name)
 
 // isAlive checks whether a backend is Alive by establishing a TCP connection
 func isBackendAlive(u *url.URL) bool {
@@ -302,15 +285,65 @@ func ConfigLoadBalancer() {
 			// Get status from cache db
 			serverId := fmt.Sprintf("servers-%s-%s", servicePrefix, serverUrl)
 			serverStatus, err := integration.GetCacheValue(serverId)
-			if err != nil && err != redis.Nil {
-				panic(err)
+			var alive = false
+			if err != nil {
+				switch err.(type) {
+				case errApp.NotFoundError:
+					alive = true
+				default:
+					panic(err)
+				}
 			}
-			serverPool.AddBackend(&Backend{ServicePrefix: servicePrefix, URL: serverUrl, Alive: err == redis.Nil || serverStatus == StatusUp})
+			alive = alive || serverStatus == StatusUp
+			serverPool.AddBackend(&Backend{ServicePrefix: servicePrefix, URL: serverUrl, Alive: alive})
+
 		}
 	}
 
 	// start health checking
 	go healthCheck()
+}
+
+// Get the available server by prefix and redirect request
+// @Summary Redirect request to healthy server
+// @Description Redirect request.
+// @Tags router redirect
+// @Accept */*
+// @Produce json
+// @Success 200 {object} map[string]interface{}
+// @Success 201 {object} map[string]interface{}
+// @Success 204 {object} map[string]interface{}
+// @Router /api/{prefix_service}/{backend_api_service} [get]
+// @Router /api/{prefix_service}/{backend_api_service} [post]
+// @Router /api/{prefix_service}/{backend_api_service} [put]
+// @Router /api/{prefix_service}/{backend_api_service} [patch]
+// @Router /api/{prefix_service}/{backend_api_service} [delete]
+func HandleRequest(c *gin.Context) {
+
+	resource := c.Param("resource")
+	apiPaths := strings.Split(resource, "/")
+
+	r := c.Request
+
+	if len(apiPaths) < 2 {
+		panic(errApp.NewBadRequestError("Router can't process this request. Format of url must be /{prefix api}/{all_rest}", nil))
+	}
+	servicePrefix := apiPaths[1] // in url "http://xpto.com/api1/xpto", gets the "api1" value
+
+	serverPool, err := serverPools.GetServerPoolByPrefix(servicePrefix)
+	if err != nil {
+		panic(errApp.NewBadRequestError("Cannot find server pool", err))
+	}
+
+	retries := GetRetryFromContext(r)
+
+	if retries < MaxRetries {
+		select {
+		case <-time.After(BackoffTimeout):
+			serverPool.HandleRequest(c, util.GetSubstringAfter(resource, servicePrefix), r.Method, r.Header)
+		}
+		return
+	}
 }
 
 var serverPools *ServerPools = NewServerPools()

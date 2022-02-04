@@ -2,6 +2,7 @@ package integration
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/go-redis/redis"
@@ -48,6 +49,10 @@ func GetValues(key string) ([]string, error) {
 		return nil, errW
 	}
 
+	if len(gr.Kvs) == 0 {
+		return nil, errApp.NewNotFoundError(fmt.Sprintf("Key '%s' not found", key))
+	}
+
 	var values []string
 
 	for _, kv := range gr.Kvs {
@@ -72,6 +77,10 @@ func GetValuesPrefixed(keyPrefix string) (map[string]string, error) {
 	if err != nil {
 		errW := errApp.NewIntegrationError("Error to connect with etcd server.", err)
 		return nil, errW
+	}
+
+	if len(gr.Kvs) == 0 {
+		return nil, errApp.NewNotFoundError(fmt.Sprintf("Key '%s' not found", keyPrefix))
 	}
 
 	mapKv := make(map[string]string)
@@ -124,9 +133,11 @@ func GetCacheValue(key string) (string, error) {
 	value, err := cli.Get(key).Result()
 
 	if err != nil {
-		return "", err
+		if err == redis.Nil {
+			return "", errApp.NewNotFoundError(fmt.Sprintf("Key '%s' not found", key))
+		}
+		return "", nil
 	}
-
 	return value, nil
 }
 

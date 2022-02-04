@@ -4,5 +4,9 @@ etcd:
 redis:
   server_address: localhost:6379
   password: 123456
+opentelemetry:
+  agent_host: localhost
+  agent_port: 6831
 app:
+  name: "Router"
   server_address: 0.0.0.0:8080

@@ -5,12 +5,14 @@ import (
 )
 
 type Config struct {
-	App   App   `mapstructure:"app"`
-	Etcd  Etcd  `mapstructure:"etcd"`
-	Redis Redis `mapstructure:"redis"`
+	App           App           `mapstructure:"app"`
+	Etcd          Etcd          `mapstructure:"etcd"`
+	Redis         Redis         `mapstructure:"redis"`
+	OpenTelemetry OpenTelemetry `mapstructure:"opentelemetry"`
 }
 
 type App struct {
+	Name          string `mapstructure:"name"`
 	ServerAddress string `mapstructure:"server_address"`
 }
 
@@ -23,20 +25,25 @@ type Redis struct {
 	Password      string `mapstructure:"password"`
 }
 
+type OpenTelemetry struct {
+	AgentHost string `mapstructure:"agent_host"`
+	AgentPort string `mapstructure:"agent_port"`
+}
+
 func LoadConfig() (config Config) {
 	viper.AddConfigPath(".")
 	viper.AddConfigPath("../internal/config/")
 	viper.SetConfigName("config")
 	viper.SetConfigType("yaml")
 
-	err := viper.ReadInConfig()
+	var err = viper.ReadInConfig()
 	if err != nil {
 		panic(err)
 	}
 
-	err2 := viper.Unmarshal(&config)
+	err = viper.Unmarshal(&config)
 	if err != nil {
-		panic(err2)
+		panic(err)
 	}
 
 	return

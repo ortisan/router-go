@@ -1,0 +1,160 @@
+basePath: /
+host: localhost:8080
+info:
+  contact:
+    email: tentativafc@gmail.com
+    name: Marcelo
+    url: https://github.com/ortisan
+  description: This is an Router APi that balance requests to healthy service endpoints.
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  termsOfService: http://swagger.io/terms/
+  title: Router API
+  version: "2.0"
+paths:
+  /:
+    get:
+      consumes:
+      - '*/*'
+      description: Health check service
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Health check service
+      tags:
+      - router healthcheck
+  /api/{prefix_service}/{backend_api_service}:
+    delete:
+      consumes:
+      - '*/*'
+      description: Redirect request.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "201":
+          description: Created
+          schema:
+            additionalProperties: true
+            type: object
+        "204":
+          description: No Content
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Redirect request to healthy server
+      tags:
+      - router redirect
+    get:
+      consumes:
+      - '*/*'
+      description: Redirect request.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "201":
+          description: Created
+          schema:
+            additionalProperties: true
+            type: object
+        "204":
+          description: No Content
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Redirect request to healthy server
+      tags:
+      - router redirect
+    patch:
+      consumes:
+      - '*/*'
+      description: Redirect request.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "201":
+          description: Created
+          schema:
+            additionalProperties: true
+            type: object
+        "204":
+          description: No Content
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Redirect request to healthy server
+      tags:
+      - router redirect
+    post:
+      consumes:
+      - '*/*'
+      description: Redirect request.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "201":
+          description: Created
+          schema:
+            additionalProperties: true
+            type: object
+        "204":
+          description: No Content
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Redirect request to healthy server
+      tags:
+      - router redirect
+    put:
+      consumes:
+      - '*/*'
+      description: Redirect request.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "201":
+          description: Created
+          schema:
+            additionalProperties: true
+            type: object
+        "204":
+          description: No Content
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Redirect request to healthy server
+      tags:
+      - router redirect
+schemes:
+- http
+swagger: "2.0"

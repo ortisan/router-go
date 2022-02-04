@@ -1,11 +1,11 @@
-package route
+package api
 
 import (
 	"net/http"
 	"runtime/debug"
 
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
+	_ "github.com/ortisan/router-go/docs"
 	"github.com/ortisan/router-go/internal/config"
 	"github.com/ortisan/router-go/internal/constant"
 	"github.com/ortisan/router-go/internal/domain"
@@ -13,16 +13,10 @@ import (
 	"github.com/ortisan/router-go/internal/loadbalancer"
 	"github.com/ortisan/router-go/internal/util"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	ginSwagger "github.com/swaggo/gin-swagger"
+	"github.com/swaggo/gin-swagger/swaggerFiles"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 )
-
-func ConfigTraceId() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		defer func() {
-			c.Set(constant.TraceIdHeaderName, uuid.New().String())
-		}()
-		c.Next()
-	}
-}
 
 func ErrorHandler() gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -43,21 +37,41 @@ func ErrorHandler() gin.HandlerFunc {
 	}
 }
 
+// Healthcheck
+// @Summary Health check service
+// @Description Health check service
+// @Tags router healthcheck
+// @Accept */*
+// @Produce json
+// @Success 200 {object} map[string]interface{}
+// @Router / [get]
+func HealthCheck(c *gin.Context) {
+	res := map[string]interface{}{
+		"status": "up",
+	}
+	c.JSON(http.StatusOK, res)
+}
+
 func ConfigServer() {
 	r := gin.Default()
 
 	// Middlewares
-	r.Use(ConfigTraceId()) // Config TraceId
-	r.Use(ErrorHandler())  // Error handling
-	r.Use(gin.Logger())    // Logger request/response
+	r.Use(otelgin.Middleware(config.ConfigObj.App.Name)) // Tracer
+	r.Use(ErrorHandler())                                // Error handling
+	r.Use(gin.Logger())                                  // Logger request/response
 
 	// Routes
+	r.GET("/", HealthCheck)                                // HealthCheck
 	r.GET("/metrics", gin.WrapH(promhttp.Handler()))       // Prometheus metrics
 	r.GET("/api/*resource", loadbalancer.HandleRequest)    // By Pass
 	r.POST("/api/*resource", loadbalancer.HandleRequest)   // By Pass
 	r.PUT("/api/*resource", loadbalancer.HandleRequest)    // By Pass
 	r.PATCH("/api/*resource", loadbalancer.HandleRequest)  // By Pass
 	r.DELETE("/api/*resource", loadbalancer.HandleRequest) // By Pass
+
+	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler,
+		ginSwagger.URL("http://localhost:8080/swagger/doc.json"),
+		ginSwagger.DefaultModelsExpandDepth(-1)))
 
 	// Running server
 	r.Run(config.ConfigObj.App.ServerAddress) // Listen server
