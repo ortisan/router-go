@@ -5,8 +5,8 @@ import (
 	"time"
 
 	"github.com/ortisan/router-go/internal/api"
-	"github.com/ortisan/router-go/internal/integration"
 	"github.com/ortisan/router-go/internal/loadbalancer"
+	"github.com/ortisan/router-go/internal/repository"
 	"github.com/ortisan/router-go/internal/telemetry"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -31,23 +31,23 @@ func main() {
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
 
 	// Mock values
-	integration.PutValue("/services/prefix/app1", "https://jsonplaceholder.typicode.com,https://abcxpto.com") // TODO Just for testing
+	repository.PutValue("/services/prefix/app1", "https://jsonplaceholder.typicode.com,https://abcxpto.com") // TODO Just for testing
 
-	values, _ := integration.GetValues("/services/prefix/app1")        // TODO Just for testing
+	values, _ := repository.GetValues("/services/prefix/app1")         // TODO Just for testing
 	log.Debug().Strs("values", values).Msg("Values from etcd loaded.") // TODO Just for testing
 
-	mapValues, _ := integration.GetValuesPrefixed("/services/prefix/") // TODO Just for testing
-	for key, value := range mapValues {                                // TODO Just for testing
+	mapValues, _ := repository.GetValuesPrefixed("/services/prefix/") // TODO Just for testing
+	for key, value := range mapValues {                               // TODO Just for testing
 		log.Debug().Str(key, value).Msg("Values from etcd loaded.") // TODO Just for testing
 	}
 
-	var res, err = integration.PutCacheValue("teste", "1")
+	var res, err = repository.PutCacheValue("teste", "1")
 	if err != nil {
 		panic(err)
 	}
 	log.Debug().Str("result", res).Msg("Put value on cache.") // TODO Just for testing
 
-	res, err = integration.GetCacheValue("teste")
+	res, err = repository.GetCacheValue("teste")
 	if err != nil {
 		panic(err)
 	}

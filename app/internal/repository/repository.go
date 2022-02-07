@@ -1,4 +1,4 @@
-package integration
+package repository
 
 import (
 	"context"
@@ -17,7 +17,7 @@ var (
 	requestTimeout = 10 * time.Second
 )
 
-func GetEtcdCli() (context.Context, *clientv3.Client, error) {
+func getEtcdCli() (context.Context, *clientv3.Client, error) {
 
 	ctx, _ := context.WithTimeout(context.Background(), requestTimeout)
 
@@ -35,7 +35,7 @@ func GetEtcdCli() (context.Context, *clientv3.Client, error) {
 }
 
 func GetValues(key string) ([]string, error) {
-	ctx, cli, err := GetEtcdCli()
+	ctx, cli, err := getEtcdCli()
 	if err != nil {
 		return nil, err
 	}
@@ -65,7 +65,7 @@ func GetValues(key string) ([]string, error) {
 }
 
 func GetValuesPrefixed(keyPrefix string) (map[string]string, error) {
-	ctx, cli, err := GetEtcdCli()
+	ctx, cli, err := getEtcdCli()
 	if err != nil {
 		return nil, err
 	}
@@ -91,7 +91,7 @@ func GetValuesPrefixed(keyPrefix string) (map[string]string, error) {
 }
 
 func PutValue(key string, value string) error {
-	ctx, cli, err := GetEtcdCli()
+	ctx, cli, err := getEtcdCli()
 	if err != nil {
 		return err
 	}
@@ -111,7 +111,7 @@ func PutValue(key string, value string) error {
 	return nil
 }
 
-func GetRedisCli() (*redis.Client, error) {
+func getRedisCli() (*redis.Client, error) {
 	client := redis.NewClient(&redis.Options{
 		Addr:     config.ConfigObj.Redis.ServerAddress,
 		Password: config.ConfigObj.Redis.Password,
@@ -123,7 +123,7 @@ func GetRedisCli() (*redis.Client, error) {
 
 func GetCacheValue(key string) (string, error) {
 
-	cli, err := GetRedisCli()
+	cli, err := getRedisCli()
 
 	if err != nil {
 		return "", err
@@ -142,7 +142,7 @@ func GetCacheValue(key string) (string, error) {
 }
 
 func PutCacheValue(key string, value string) (string, error) {
-	cli, err := GetRedisCli()
+	cli, err := getRedisCli()
 
 	if err != nil {
 		return "", err

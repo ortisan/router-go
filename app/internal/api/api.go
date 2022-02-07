@@ -3,12 +3,13 @@ package api
 import (
 	"net/http"
 	"runtime/debug"
+	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	_ "github.com/ortisan/router-go/docs"
 	"github.com/ortisan/router-go/internal/config"
 	"github.com/ortisan/router-go/internal/constant"
-	"github.com/ortisan/router-go/internal/domain"
 	errApp "github.com/ortisan/router-go/internal/error"
 	"github.com/ortisan/router-go/internal/loadbalancer"
 	"github.com/ortisan/router-go/internal/util"
@@ -25,10 +26,10 @@ func ErrorHandler() gin.HandlerFunc {
 				switch err.(type) {
 				case errApp.IWithMessageAndStatusCode:
 					error := err.(errApp.IWithMessageAndStatusCode)
-					errObj := domain.Error{Message: error.Error(), Cause: error.Cause(), StackTrace: error.StackTrace()}
+					errObj := errApp.Error{Message: error.Error(), Cause: error.Cause(), StackTrace: error.StackTrace()}
 					c.Data(error.Status(), c.GetHeader(constant.ContentTypeHeaderName), util.ObjectToJson(errObj)) // Data is returned
 				default:
-					errObj := domain.Error{Message: err.(error).Error(), StackTrace: string(debug.Stack())}
+					errObj := errApp.Error{Message: err.(error).Error(), StackTrace: string(debug.Stack())}
 					c.Data(http.StatusInternalServerError, c.GetHeader(constant.ContentTypeHeaderName), util.ObjectToJson(errObj)) // Data is returned
 				}
 			}
@@ -52,6 +53,48 @@ func HealthCheck(c *gin.Context) {
 	c.JSON(http.StatusOK, res)
 }
 
+// Get the available server by prefix and redirect request
+// @Summary Redirect request to healthy server
+// @Description Redirect request.
+// @Tags router redirect
+// @Accept */*
+// @Produce json
+// @Success 200 {object} map[string]interface{}
+// @Success 201 {object} map[string]interface{}
+// @Success 204 {object} map[string]interface{}
+// @Router /api/{prefix_service}/{backend_api_service} [get]
+// @Router /api/{prefix_service}/{backend_api_service} [post]
+// @Router /api/{prefix_service}/{backend_api_service} [put]
+// @Router /api/{prefix_service}/{backend_api_service} [patch]
+// @Router /api/{prefix_service}/{backend_api_service} [delete]
+func HandleRequest(c *gin.Context) {
+
+	resource := c.Param("resource")
+	apiPaths := strings.Split(resource, "/")
+
+	r := c.Request
+
+	if len(apiPaths) < 2 {
+		panic(errApp.NewBadRequestError("Router can't process this request. Format of url must be /{prefix api}/{all_rest}", nil))
+	}
+	servicePrefix := apiPaths[1] // in url "http://xpto.com/api1/xpto", gets the "api1" value
+
+	serverPool, err := loadbalancer.ServerPoolsObj.GetServerPoolByPrefix(servicePrefix)
+	if err != nil {
+		panic(errApp.NewBadRequestError("Cannot find server pool", err))
+	}
+
+	retries := loadbalancer.GetRetryFromContext(r)
+
+	if retries < loadbalancer.MaxRetries {
+		select {
+		case <-time.After(loadbalancer.BackoffTimeout):
+			serverPool.HandleRequest(c, util.GetSubstringAfter(resource, servicePrefix), r.Method, r.Header)
+		}
+		return
+	}
+}
+
 func ConfigServer() {
 	r := gin.Default()
 
@@ -61,13 +104,13 @@ func ConfigServer() {
 	r.Use(gin.Logger())                                  // Logger request/response
 
 	// Routes
-	r.GET("/", HealthCheck)                                // HealthCheck
-	r.GET("/metrics", gin.WrapH(promhttp.Handler()))       // Prometheus metrics
-	r.GET("/api/*resource", loadbalancer.HandleRequest)    // By Pass
-	r.POST("/api/*resource", loadbalancer.HandleRequest)   // By Pass
-	r.PUT("/api/*resource", loadbalancer.HandleRequest)    // By Pass
-	r.PATCH("/api/*resource", loadbalancer.HandleRequest)  // By Pass
-	r.DELETE("/api/*resource", loadbalancer.HandleRequest) // By Pass
+	r.GET("/", HealthCheck)                          // HealthCheck
+	r.GET("/metrics", gin.WrapH(promhttp.Handler())) // Prometheus metrics
+	r.GET("/api/*resource", HandleRequest)           // By Pass
+	r.POST("/api/*resource", HandleRequest)          // By Pass
+	r.PUT("/api/*resource", HandleRequest)           // By Pass
+	r.PATCH("/api/*resource", HandleRequest)         // By Pass
+	r.DELETE("/api/*resource", HandleRequest)        // By Pass
 
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler,
 		ginSwagger.URL("http://localhost:8080/swagger/doc.json"),

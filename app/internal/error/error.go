@@ -7,6 +7,13 @@ import (
 	"github.com/google/uuid"
 )
 
+type Error struct {
+	TraceId    string `json:"trace_id,omitempty"`
+	Message    string `json:"message,omitempty"`
+	Cause      string `json:"cause,omitempty"`
+	StackTrace string `json:"stacktrace,omitempty"`
+}
+
 type IWithMessageAndStatusCode interface {
 	Status() int
 	Error() string

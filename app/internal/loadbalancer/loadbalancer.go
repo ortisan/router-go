@@ -22,7 +22,7 @@ import (
 	"github.com/ortisan/router-go/internal/config"
 	"github.com/ortisan/router-go/internal/constant"
 	errApp "github.com/ortisan/router-go/internal/error"
-	"github.com/ortisan/router-go/internal/integration"
+	"github.com/ortisan/router-go/internal/repository"
 	"github.com/ortisan/router-go/internal/util"
 )
 
@@ -191,7 +191,7 @@ func (s *ServerPool) HealthCheck() {
 
 		// Updating server status code on cache db
 		serverId := fmt.Sprintf("servers-%s-%s", s.ServicePrefix, b.URL.String())
-		integration.PutCacheValue(serverId, status)
+		repository.PutCacheValue(serverId, status)
 		// Update server status code in cache db
 		b.SetAlive(alive)
 	}
@@ -238,7 +238,7 @@ func healthCheck() {
 		select {
 		case <-t.C:
 			log.Debug().Msg("Starting health check...")
-			for servicePrefix, serverPool := range serverPools.ServerPoolByPrefix {
+			for servicePrefix, serverPool := range ServerPoolsObj.ServerPoolByPrefix {
 				log.Debug().Str("prefix", servicePrefix).Msg("Health checking services of this prefix")
 				serverPool.HealthCheck()
 			}
@@ -260,7 +260,7 @@ func HeadersDisabledInRedirection() func(string) bool {
 
 func ConfigLoadBalancer() {
 
-	servicesByPrefix, err := integration.GetValuesPrefixed(PrefixConfig)
+	servicesByPrefix, err := repository.GetValuesPrefixed(PrefixConfig)
 	if err != nil {
 		panic(err)
 	}
@@ -270,10 +270,10 @@ func ConfigLoadBalancer() {
 		serversUrls := strings.Split(serversUrlString, ",")
 
 		var serverPool *ServerPool
-		serverPool, err = serverPools.GetServerPoolByPrefix(servicePrefix)
+		serverPool, err = ServerPoolsObj.GetServerPoolByPrefix(servicePrefix)
 		if err != nil {
 			serverPool = &ServerPool{ServicePrefix: servicePrefix}
-			serverPools.AddServerPoolByPrefix(servicePrefix, serverPool)
+			ServerPoolsObj.AddServerPoolByPrefix(servicePrefix, serverPool)
 		}
 
 		for _, serverUrlStr := range serversUrls {
@@ -284,7 +284,7 @@ func ConfigLoadBalancer() {
 
 			// Get status from cache db
 			serverId := fmt.Sprintf("servers-%s-%s", servicePrefix, serverUrl)
-			serverStatus, err := integration.GetCacheValue(serverId)
+			serverStatus, err := repository.GetCacheValue(serverId)
 			var alive = false
 			if err != nil {
 				switch err.(type) {
@@ -304,46 +304,4 @@ func ConfigLoadBalancer() {
 	go healthCheck()
 }
 
-// Get the available server by prefix and redirect request
-// @Summary Redirect request to healthy server
-// @Description Redirect request.
-// @Tags router redirect
-// @Accept */*
-// @Produce json
-// @Success 200 {object} map[string]interface{}
-// @Success 201 {object} map[string]interface{}
-// @Success 204 {object} map[string]interface{}
-// @Router /api/{prefix_service}/{backend_api_service} [get]
-// @Router /api/{prefix_service}/{backend_api_service} [post]
-// @Router /api/{prefix_service}/{backend_api_service} [put]
-// @Router /api/{prefix_service}/{backend_api_service} [patch]
-// @Router /api/{prefix_service}/{backend_api_service} [delete]
-func HandleRequest(c *gin.Context) {
-
-	resource := c.Param("resource")
-	apiPaths := strings.Split(resource, "/")
-
-	r := c.Request
-
-	if len(apiPaths) < 2 {
-		panic(errApp.NewBadRequestError("Router can't process this request. Format of url must be /{prefix api}/{all_rest}", nil))
-	}
-	servicePrefix := apiPaths[1] // in url "http://xpto.com/api1/xpto", gets the "api1" value
-
-	serverPool, err := serverPools.GetServerPoolByPrefix(servicePrefix)
-	if err != nil {
-		panic(errApp.NewBadRequestError("Cannot find server pool", err))
-	}
-
-	retries := GetRetryFromContext(r)
-
-	if retries < MaxRetries {
-		select {
-		case <-time.After(BackoffTimeout):
-			serverPool.HandleRequest(c, util.GetSubstringAfter(resource, servicePrefix), r.Method, r.Header)
-		}
-		return
-	}
-}
-
-var serverPools *ServerPools = NewServerPools()
+var ServerPoolsObj *ServerPools = NewServerPools()
