@@ -6,6 +6,7 @@ import (
 
 	"github.com/ortisan/router-go/internal/api"
 	"github.com/ortisan/router-go/internal/loadbalancer"
+	"github.com/ortisan/router-go/internal/messaging"
 	"github.com/ortisan/router-go/internal/repository"
 	"github.com/ortisan/router-go/internal/telemetry"
 	"github.com/rs/zerolog"
@@ -52,6 +53,16 @@ func main() {
 		panic(err)
 	}
 	log.Debug().Str("result", res).Msg("Get value on cache.") // TODO Just for testing
+
+	messaging.Config()
+
+	messaging.SendHealthMessage("server 1 is healthy")
+
+	msg, err := messaging.GetHealthMessage()
+	if err != nil {
+		panic(err)
+	}
+	log.Debug().Str("result", msg).Msg("Health Message from SQS.") // TODO Just for testing
 
 	// Config telemetry
 	tp, err := telemetry.ConfigTracerProvider()

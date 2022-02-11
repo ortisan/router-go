@@ -42,7 +42,6 @@ go run main.go
 go build -o <sh/exe name>
 # Generate swagger
 swag init -g main.go --output docs
-
 # Send notification
 awslocal sns publish --topic-arn arn:aws:sns:sa-east-1:000000000000:health-cells-topic --message 'testing' --endpoint-url=http://localhost:4566
 # Read SQS Message

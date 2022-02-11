@@ -9,6 +9,7 @@ type Config struct {
 	Etcd          Etcd          `mapstructure:"etcd"`
 	Redis         Redis         `mapstructure:"redis"`
 	OpenTelemetry OpenTelemetry `mapstructure:"opentelemetry"`
+	AWS           AWS           `mapstructure:"aws"`
 }
 
 type App struct {
@@ -28,6 +29,21 @@ type Redis struct {
 type OpenTelemetry struct {
 	AgentHost string `mapstructure:"agent_host"`
 	AgentPort string `mapstructure:"agent_port"`
+}
+
+type SNS struct {
+	HealthTopicArn string `mapstructure:"health_topic_arn"`
+}
+
+type SQS struct {
+	HealthQueueUrl string `mapstructure:"health_queue_url"`
+}
+
+type AWS struct {
+	Region      string `mapstructure:"region"`
+	EndpointUrl string `mapstructure:"endpoint_url"`
+	SNS         SNS    `mapstructure:"sns"`
+	SQS         SQS    `mapstructure:"sqs"`
 }
 
 func LoadConfig() (config Config) {

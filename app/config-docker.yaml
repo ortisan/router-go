@@ -7,6 +7,13 @@ redis:
 opentelemetry:
   agent_host: jaeger
   agent_port: 6831
+aws:
+  region: "sa-east-1"
+  endpoint_url: http://localstack:4566
+  sns:
+    health_topic_arn: arn:aws:sns:sa-east-1:000000000000:health-cells-topic
+  sqs:
+    health_queue_url: http://localstack:4566/000000000000/health-cells-queue
 app:
   name: "Router"
   server_address: 0.0.0.0:8080
