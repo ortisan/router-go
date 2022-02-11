@@ -1,17 +1,17 @@
 version: '3'
 
 services:
-  # localstack:
-  #   image: 'localstack/localstack:0.13.0'
-  #   restart: always
-  #   environment:
-  #     - AWS_DEFAULT_REGION=sa-east-1
-  #     - SERVICES=dynamodb
-  #   ports:
-  #     - "4566-4599:4566-4599"
-  #     - "${PORT_WEB_UI-8080}:${PORT_WEB_UI-8080}"
-  #   volumes:
-  #     - ./docker/aws:/docker-entrypoint-initaws.d
+  localstack:
+    image: 'localstack/localstack:0.13.0'
+    restart: always
+    environment:
+      - AWS_DEFAULT_REGION=sa-east-1
+      - SERVICES=sns,sqs
+    ports:
+      - "4566-4599:4566-4599"
+      - "8081:8080"
+    volumes:
+      - ./docker/aws:/docker-entrypoint-initaws.d
 
   prometheus:
     image: prom/prometheus
@@ -60,27 +60,27 @@ services:
       timeout: 10s
       retries: 5
 
-  app:
-    build: .
-    ports:
-      - "8080:8080"
-    deploy:
-      resources:
-        reservations:
-          cpus: 0.5
-          memory: 512M
-        limits:
-          cpus: 1
-          memory: 1024M
-    restart: on-failure
-    depends_on:
-      - etcd
-      - redis
-    links:
-      - etcd
-      - redis
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost8080/metrics"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
+  # app:
+  #   build: .
+  #   ports:
+  #     - "8080:8080"
+  #   deploy:
+  #     resources:
+  #       reservations:
+  #         cpus: 0.5
+  #         memory: 512M
+  #       limits:
+  #         cpus: 1
+  #         memory: 1024M
+  #   restart: on-failure
+  #   depends_on:
+  #     - etcd
+  #     - redis
+  #   links:
+  #     - etcd
+  #     - redis
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost8080/metrics"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 5
