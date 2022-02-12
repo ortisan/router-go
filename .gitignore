@@ -24,6 +24,10 @@ go.work
 __debug_bin
 
 
+.idea/
+target/
+
+
 # App
 docker/volumes/grafana/**
 

@@ -6,17 +6,17 @@ services:
     restart: always
     environment:
       - AWS_DEFAULT_REGION=sa-east-1
-      - SERVICES=sns,sqs
+      - SERVICES=sns,sqs,ssm
     ports:
-      - "4566-4599:4566-4599"
-      - "8081:8080"
+      - 4566-4599:4566-4599
+      - 8089:8080
     volumes:
       - ./docker/aws:/docker-entrypoint-initaws.d
 
   prometheus:
     image: prom/prometheus
     ports:
-      - "9090:9090"
+      - 9090:9090
     volumes:
       - "./docker/prometheus/prometheus.yaml:/etc/prometheus/prometheus.yaml"
 
@@ -24,16 +24,16 @@ services:
     image: grafana/grafana
     user: 1000:1000
     ports:
-      - "3000:3000"
+      - 3000:3000
     volumes:
       - "./docker/volumes/grafana:/var/lib/grafana:rw"
 
   jaeger:
     image: jaegertracing/all-in-one
     ports:
-      - "6831:6831/udp"
-      - "14268:14268"
-      - "16686:16686"
+      - 6831:6831/udp
+      - 14268:14268
+      - 16686:16686
 
   etcd:
     image: 'bitnami/etcd:3.5.2'
@@ -41,8 +41,8 @@ services:
       - ALLOW_NONE_AUTHENTICATION=yes
       - ETCD_ADVERTISE_CLIENT_URLS=http://etcd:2379
     ports:
-      - "2379:2379"
-      - "2380:2380"
+      - 2379:2379
+      - 2380:2380
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:2379"]
       interval: 30s
@@ -60,10 +60,10 @@ services:
       timeout: 10s
       retries: 5
 
-  app:
+  router-app:
     build: .
     ports:
-      - "8080:8080"
+      - 8080:8080
     deploy:
       resources:
         reservations:
@@ -80,7 +80,76 @@ services:
       - etcd
       - redis
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost8080/metrics"]
+      test: ["CMD", "curl", "-f", "http://localhost:8080/metrics"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  dummy-app1:
+    build: dummy-app/
+    ports:
+      - 8081:8080
+    environment:
+      - PARAM_STORE_NAME=app1.error.threshold
+    deploy:
+      resources:
+        reservations:
+          cpus: 0.5
+          memory: 512M
+        limits:
+          cpus: 1
+          memory: 1024M
+    restart: on-failure
+    depends_on:
+      - localstack
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  dummy-app2:
+    build: dummy-app/
+    ports:
+      - 8082:8080
+    environment:
+      - PARAM_STORE_NAME=app2.error.threshold
+    deploy:
+      resources:
+        reservations:
+          cpus: 0.5
+          memory: 512M
+        limits:
+          cpus: 1
+          memory: 1024M
+    restart: on-failure
+    depends_on:
+      - localstack
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8082/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  dummy-app3:
+    build: dummy-app/
+    ports:
+      - 8083:8080
+    environment:
+      - PARAM_STORE_NAME=app3.error.threshold
+    deploy:
+      resources:
+        reservations:
+          cpus: 0.5
+          memory: 512M
+        limits:
+          cpus: 1
+          memory: 1024M
+    restart: on-failure
+    depends_on:
+      - localstack
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8083/actuator/health"]
       interval: 30s
       timeout: 10s
       retries: 5
