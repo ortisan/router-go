@@ -21,6 +21,22 @@
 | Jaeger     | http://localhost:16686           |
 | Swagger UI | http://localhost:8080/index.html |
 
+## How It Works
+
+
+### Request Flow
+
+```mermaid
+flowchart TD
+    Req[Request] --> |1. Handle this|R
+    R[Router] --> |2. Give me healthy Server based on <BR> this prefix URL and Zone AWS|SP[Server Pool]
+    SP --> |3. Here is a <BR> Healthy Server|R
+    R --> |4. Handle Request| HS[Healthy Server]
+    HS --> |5. Here is a response |R
+    R ----> |6. OK/Error |Res[Response]
+```
+
+### HealthCheck Flow
 
 
 ## TODO

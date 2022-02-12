@@ -18,11 +18,10 @@ var (
 )
 
 func getEtcdCli() (context.Context, *clientv3.Client, error) {
-
 	ctx, _ := context.WithTimeout(context.Background(), requestTimeout)
 
 	cli, err := clientv3.New(clientv3.Config{
-		DialTimeout: 5 * time.Second,
+		DialTimeout: dialTimeout,
 		Endpoints:   config.ConfigObj.Etcd.Endpoints,
 	})
 
@@ -36,6 +35,7 @@ func getEtcdCli() (context.Context, *clientv3.Client, error) {
 
 func GetValues(key string) ([]string, error) {
 	ctx, cli, err := getEtcdCli()
+
 	if err != nil {
 		return nil, err
 	}
@@ -106,8 +106,7 @@ func PutValue(key string, value string) error {
 	}
 
 	revision := resp.Header.Revision
-	log.Debug().Str("key", key).Str("value", value).Int64("revision", revision).Msg("Value inserted...")
-
+	log.Debug().Str("key", key).Str("value", value).Int64("revision", revision).Msg("Value inserted into etcd...")
 	return nil
 }
 
@@ -117,12 +116,10 @@ func getRedisCli() (*redis.Client, error) {
 		Password: config.ConfigObj.Redis.Password,
 		DB:       0,
 	})
-
 	return client, nil
 }
 
 func GetCacheValue(key string) (string, error) {
-
 	cli, err := getRedisCli()
 
 	if err != nil {
@@ -130,6 +127,7 @@ func GetCacheValue(key string) (string, error) {
 	}
 	defer cli.Close()
 
+	log.Debug().Str("key", key).Msg("Trying to get value in redis...")
 	value, err := cli.Get(key).Result()
 
 	if err != nil {
@@ -138,6 +136,8 @@ func GetCacheValue(key string) (string, error) {
 		}
 		return "", nil
 	}
+
+	log.Debug().Str("key", key).Str("value", value).Msg("Value obtained...")
 	return value, nil
 }
 
@@ -149,11 +149,13 @@ func PutCacheValue(key string, value string) (string, error) {
 	}
 	defer cli.Close()
 
+	log.Debug().Str("key", key).Str("value", value).Msg("Trying to put value in redis...")
 	result, err := cli.Set(key, value, 0*time.Second).Result()
 
 	if err != nil {
 		return "", err
 	}
 
+	log.Debug().Str("key", key).Str("value", value).Msg("Value inserted into redis...")
 	return result, nil
 }

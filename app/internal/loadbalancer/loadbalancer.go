@@ -23,7 +23,6 @@ import (
 	"github.com/ortisan/router-go/internal/constant"
 	errApp "github.com/ortisan/router-go/internal/error"
 	"github.com/ortisan/router-go/internal/repository"
-	"github.com/ortisan/router-go/internal/util"
 )
 
 const (
@@ -35,7 +34,15 @@ const (
 	BackoffTimeout       = 10 * time.Millisecond
 	StatusUp             = "up"
 	statusDown           = "down"
+
+	HealthCheckDialUp = iota
+	HealthCheckHttp   = iota
 )
+
+type HealthCheck struct {
+	Type     int
+	Endpoint string
+}
 
 // Backend holds the data about a server
 type Backend struct {
@@ -43,7 +50,16 @@ type Backend struct {
 	URL           *url.URL
 	ZoneAws       string
 	Alive         bool
+	HealthCheck   HealthCheck
 	mux           sync.RWMutex
+}
+
+func newHealthcheck(typeStr string, endpoint string) HealthCheck {
+	if typeStr == "tcp" {
+		return HealthCheck{Type: HealthCheckDialUp, Endpoint: endpoint}
+	} else {
+		return HealthCheck{Type: HealthCheckHttp, Endpoint: endpoint}
+	}
 }
 
 // SetAlive for this backend
@@ -91,12 +107,8 @@ func (s *ServerPools) AddServerPoolByAwsZone(prefix string, serverPool *ServerPo
 	s.ServerPoolByAwsZone[prefix] = serverPool
 }
 
-func (s *ServerPools) GetServerPoolByPrefix(prefix string) (*ServerPool, error) {
-	serverPool := s.ServerPoolByPrefix[prefix]
-	if serverPool == nil {
-		return nil, errApp.NewBadRequestError(fmt.Sprintf("Router can't process this request. Services of the prefix %s not found", prefix), nil)
-	}
-	return serverPool, nil
+func (s *ServerPools) GetServerPoolByPrefix(prefix string) *ServerPool {
+	return s.ServerPoolByPrefix[prefix]
 }
 
 // NextIndex atomically increase the counter and return an index
@@ -179,21 +191,10 @@ func (s *ServerPool) HandleRequest(c *gin.Context, pathUri string, method string
 	c.Data(resp.StatusCode, resp.Header.Get(constant.ContentTypeHeaderName), body) // Data is returned
 }
 
-// HealthCheck pings the backends and update the status
-func (s *ServerPool) HealthCheck() {
+// doHealthCheck pings the backends and update the status
+func (s *ServerPool) doHealthCheck() {
 	for _, b := range s.backends {
-		status := StatusUp
-		alive := isBackendAlive(b.URL)
-		if !alive {
-			status = statusDown
-		}
-		log.Debug().Str("backend", b.URL.String()).Str("status", status).Msg("Health check result")
-
-		// Updating server status code on cache db
-		serverId := fmt.Sprintf("servers-%s-%s", s.ServicePrefix, b.URL.String())
-		repository.PutCacheValue(serverId, status)
-		// Update server status code in cache db
-		b.SetAlive(alive)
+		b.doHealthCheck()
 	}
 }
 
@@ -216,19 +217,39 @@ func GetRetryFromContext(r *http.Request) int {
 var tracer = otel.Tracer(config.ConfigObj.App.Name)
 
 // isAlive checks whether a backend is Alive by establishing a TCP connection
-func isBackendAlive(u *url.URL) bool {
-	timeout := 2 * time.Second
-	var address = u.Host
-	if !strings.Contains(address, ":") {
-		address = fmt.Sprintf("%s:%s", address, "80")
+func (b *Backend) doHealthCheck() {
+	var alive = false
+
+	if b.HealthCheck.Type == HealthCheckDialUp {
+		timeout := 2 * time.Second
+		var address = b.URL.Host
+		if !strings.Contains(address, ":") {
+			address = fmt.Sprintf("%s:%s", address, "80")
+		}
+		conn, err := net.DialTimeout("tcp", address, timeout)
+		if err != nil {
+			log.Warn().Err(err).Msg("Server healthcheck error.")
+		} else {
+			alive = true
+		}
+		defer conn.Close()
+	} else {
+		resp, err := http.Get(b.HealthCheck.Endpoint)
+		if err != nil {
+			log.Warn().Err(err).Msg("Server healthcheck error.")
+		} else {
+			alive = resp.StatusCode == http.StatusOK
+		}
 	}
-	conn, err := net.DialTimeout("tcp", address, timeout)
-	if err != nil {
-		log.Warn().Err(err).Msg("Site unreachable")
-		return false
+	b.SetAlive(alive)
+	var status string
+	if alive {
+		status = StatusUp
+	} else {
+		status = statusDown
 	}
-	defer conn.Close()
-	return true
+	serverId := fmt.Sprintf("servers-%s-%s", b.ServicePrefix, b.URL.String())
+	repository.PutCacheValue(serverId, status)
 }
 
 // healthCheck runs a routine for check status of the backends every 30 seconds
@@ -240,7 +261,7 @@ func healthCheck() {
 			log.Debug().Msg("Starting health check...")
 			for servicePrefix, serverPool := range ServerPoolsObj.ServerPoolByPrefix {
 				log.Debug().Str("prefix", servicePrefix).Msg("Health checking services of this prefix")
-				serverPool.HealthCheck()
+				serverPool.doHealthCheck()
 			}
 			log.Debug().Msg("Health check completed")
 		}
@@ -258,46 +279,40 @@ func HeadersDisabledInRedirection() func(string) bool {
 	}
 }
 
-func ConfigLoadBalancer() {
+func Config() {
 
-	servicesByPrefix, err := repository.GetValuesPrefixed(PrefixConfig)
-	if err != nil {
-		panic(err)
-	}
+	serversConfig := config.ConfigObj.Servers
 
-	for configServer, serversUrlString := range servicesByPrefix {
-		servicePrefix := util.GetSubstringAfter(configServer, PrefixConfig)
-		serversUrls := strings.Split(serversUrlString, ",")
+	for _, server := range serversConfig {
+
+		serverUrl, err := url.Parse(server.EndpointUrl)
+		if err != nil {
+			panic(err)
+		}
 
 		var serverPool *ServerPool
-		serverPool, err = ServerPoolsObj.GetServerPoolByPrefix(servicePrefix)
-		if err != nil {
-			serverPool = &ServerPool{ServicePrefix: servicePrefix}
-			ServerPoolsObj.AddServerPoolByPrefix(servicePrefix, serverPool)
+		serverPool = ServerPoolsObj.GetServerPoolByPrefix(server.ServicePrefix)
+		if serverPool == nil {
+			// Init Server Pool
+			serverPool = &ServerPool{ServicePrefix: server.ServicePrefix}
+			ServerPoolsObj.AddServerPoolByPrefix(server.ServicePrefix, serverPool)
 		}
 
-		for _, serverUrlStr := range serversUrls {
-			serverUrl, err := url.Parse(serverUrlStr)
-			if err != nil {
+		// Update status status from cache db
+		serverId := fmt.Sprintf("servers-%s-%s", server.ServicePrefix, server.EndpointUrl)
+		serverStatus, err := repository.GetCacheValue(serverId)
+		var alive = false
+		if err != nil {
+			switch err.(type) {
+			case errApp.NotFoundError:
+				alive = true
+			default:
 				panic(err)
 			}
-
-			// Get status from cache db
-			serverId := fmt.Sprintf("servers-%s-%s", servicePrefix, serverUrl)
-			serverStatus, err := repository.GetCacheValue(serverId)
-			var alive = false
-			if err != nil {
-				switch err.(type) {
-				case errApp.NotFoundError:
-					alive = true
-				default:
-					panic(err)
-				}
-			}
-			alive = alive || serverStatus == StatusUp
-			serverPool.AddBackend(&Backend{ServicePrefix: servicePrefix, URL: serverUrl, Alive: alive})
-
 		}
+		alive = alive || serverStatus == StatusUp
+		// Add server to serverpool
+		serverPool.AddBackend(&Backend{ServicePrefix: server.ServicePrefix, URL: serverUrl, Alive: alive, ZoneAws: server.ZoneAws, HealthCheck: newHealthcheck(server.HealthCheck.Type, server.HealthCheck.Endpoint)})
 	}
 
 	// start health checking

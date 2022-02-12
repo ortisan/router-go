@@ -14,6 +14,16 @@ aws:
     health_topic_arn: arn:aws:sns:sa-east-1:000000000000:health-cells-topic
   sqs:
     health_queue_url: http://localstack:4566/000000000000/health-cells-queue
+servers:
+  -
+    server_name: Server 1
+    service_prefix: app1
+    endpoint_url: http://server1:8081/api/v1
+    zone_aws: sa-east-1a
+    alive: true
+    healthcheck:
+      type: http
+      endpoint: /actuator/health
 app:
   name: "Router"
   server_address: 0.0.0.0:8080

@@ -11,19 +11,25 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-var awsConfig = *aws.NewConfig()
+var (
+	awsConfig               = *aws.NewConfig()
+	timeoutVisibility int64 = 12 * 60
+)
 
 func Config() {
+	// Config region
 	awsConfig.WithRegion(config.ConfigObj.AWS.Region)
-	awsConfig.WithEndpoint(config.ConfigObj.AWS.EndpointUrl)
+	// Config endpoint url (local and docker env)
+	if len(config.ConfigObj.AWS.EndpointUrl) > 0 {
+		awsConfig.WithEndpoint(config.ConfigObj.AWS.EndpointUrl)
+	}
 }
 
 func getMessages(sess *session.Session, queueURL *string, timeout *int64) (*sqs.ReceiveMessageOutput, error) {
 	// Create an SQS service client
-	svc := sqs.New(sess)
+	client := sqs.New(sess)
 
-	// snippet-start:[sqs.go.receive_messages.call]
-	msgResult, err := svc.ReceiveMessage(&sqs.ReceiveMessageInput{
+	result, err := client.ReceiveMessage(&sqs.ReceiveMessageInput{
 		AttributeNames: []*string{
 			aws.String(sqs.MessageSystemAttributeNameSentTimestamp),
 		},
@@ -34,12 +40,12 @@ func getMessages(sess *session.Session, queueURL *string, timeout *int64) (*sqs.
 		MaxNumberOfMessages: aws.Int64(1),
 		VisibilityTimeout:   timeout,
 	})
-	// snippet-end:[sqs.go.receive_messages.call]
+
 	if err != nil {
 		return nil, err
 	}
 
-	return msgResult, nil
+	return result, nil
 }
 
 func GetHealthMessage() (string, error) {
@@ -48,15 +54,12 @@ func GetHealthMessage() (string, error) {
 		SharedConfigState: session.SharedConfigEnable,
 	}))
 
-	var timeoutVisibility int64
-	timeoutVisibility = 12 * 60 * 60
-
-	msgResult, err := getMessages(sess, &config.ConfigObj.AWS.SQS.HealthQueueUrl, &timeoutVisibility)
+	result, err := getMessages(sess, &config.ConfigObj.AWS.SQS.HealthQueueUrl, &timeoutVisibility)
 
 	if err != nil {
 		return "", errApp.NewIntegrationError("Error to get sqs messages.", err)
 	}
-	msgReturn := string(util.ObjectToJson(msgResult))
+	msgReturn := string(util.ObjectToJson(result))
 
 	log.Debug().Msg(msgReturn)
 
@@ -69,9 +72,9 @@ func SendHealthMessage(message string) error {
 		SharedConfigState: session.SharedConfigEnable,
 	}))
 
-	svc := sns.New(sess)
+	client := sns.New(sess)
 
-	_, err := svc.Publish(&sns.PublishInput{
+	_, err := client.Publish(&sns.PublishInput{
 		Message:  &message,
 		TopicArn: &config.ConfigObj.AWS.SNS.HealthTopicArn,
 	})

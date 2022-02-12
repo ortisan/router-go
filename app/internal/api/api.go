@@ -1,6 +1,7 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
 	"runtime/debug"
 	"strings"
@@ -75,13 +76,13 @@ func HandleRequest(c *gin.Context) {
 	r := c.Request
 
 	if len(apiPaths) < 2 {
-		panic(errApp.NewBadRequestError("Router can't process this request. Format of url must be /{prefix api}/{all_rest}", nil))
+		panic(errApp.NewBadRequestErrorWithCause("Router can't process this request. Format of url must be /{prefix api}/{all_rest}", nil))
 	}
 	servicePrefix := apiPaths[1] // in url "http://xpto.com/api1/xpto", gets the "api1" value
 
-	serverPool, err := loadbalancer.ServerPoolsObj.GetServerPoolByPrefix(servicePrefix)
-	if err != nil {
-		panic(errApp.NewBadRequestError("Cannot find server pool", err))
+	serverPool := loadbalancer.ServerPoolsObj.GetServerPoolByPrefix(servicePrefix)
+	if serverPool == nil {
+		panic(errApp.NewBadRequestError(fmt.Sprintf("Cannot any server that can handle the prefix \"%s\"", servicePrefix)))
 	}
 
 	retries := loadbalancer.GetRetryFromContext(r)
@@ -95,7 +96,7 @@ func HandleRequest(c *gin.Context) {
 	}
 }
 
-func ConfigServer() {
+func Config() {
 	r := gin.Default()
 
 	// Middlewares

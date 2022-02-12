@@ -10,6 +10,7 @@ type Config struct {
 	Redis         Redis         `mapstructure:"redis"`
 	OpenTelemetry OpenTelemetry `mapstructure:"opentelemetry"`
 	AWS           AWS           `mapstructure:"aws"`
+	Servers       []Server      `mapstructure:"servers"`
 }
 
 type App struct {
@@ -44,6 +45,20 @@ type AWS struct {
 	EndpointUrl string `mapstructure:"endpoint_url"`
 	SNS         SNS    `mapstructure:"sns"`
 	SQS         SQS    `mapstructure:"sqs"`
+}
+
+type HealthCheck struct {
+	Type     string `mapstructure:"type"`
+	Endpoint string `mapstructure:"endpoint"`
+}
+
+type Server struct {
+	ServicePrefix string      `mapstructure:"service_prefix"`
+	ServerName    string      `mapstructure:"server_name"`
+	EndpointUrl   string      `mapstructure:"endpoint_url"`
+	ZoneAws       string      `mapstructure:"zone_aws"`
+	Alive         bool        `mapstructure:"alive"`
+	HealthCheck   HealthCheck `mapstructure:"healthcheck"`
 }
 
 func LoadConfig() (config Config) {

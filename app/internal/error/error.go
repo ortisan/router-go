@@ -77,7 +77,11 @@ type BadRequestError struct {
 	GenericError
 }
 
-func NewBadRequestError(msg string, cause error) error {
+func NewBadRequestError(msg string) error {
+	return BadRequestError{GenericError{ErrorSt{status: http.StatusBadRequest, msg: msg, stackTrace: string(debug.Stack())}}}
+}
+
+func NewBadRequestErrorWithCause(msg string, cause error) error {
 	return BadRequestError{GenericError{ErrorSt{status: http.StatusBadRequest, msg: msg, cause: cause, stackTrace: string(debug.Stack())}}}
 }
 

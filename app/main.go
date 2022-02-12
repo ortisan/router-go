@@ -7,10 +7,8 @@ import (
 	"github.com/ortisan/router-go/internal/api"
 	"github.com/ortisan/router-go/internal/loadbalancer"
 	"github.com/ortisan/router-go/internal/messaging"
-	"github.com/ortisan/router-go/internal/repository"
 	"github.com/ortisan/router-go/internal/telemetry"
 	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
 )
 
 // @title Router API
@@ -31,41 +29,10 @@ import (
 func main() {
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
 
-	// Mock values
-	repository.PutValue("/services/prefix/app1", "https://jsonplaceholder.typicode.com,https://abcxpto.com") // TODO Just for testing
-
-	values, _ := repository.GetValues("/services/prefix/app1")         // TODO Just for testing
-	log.Debug().Strs("values", values).Msg("Values from etcd loaded.") // TODO Just for testing
-
-	mapValues, _ := repository.GetValuesPrefixed("/services/prefix/") // TODO Just for testing
-	for key, value := range mapValues {                               // TODO Just for testing
-		log.Debug().Str(key, value).Msg("Values from etcd loaded.") // TODO Just for testing
-	}
-
-	var res, err = repository.PutCacheValue("teste", "1")
-	if err != nil {
-		panic(err)
-	}
-	log.Debug().Str("result", res).Msg("Put value on cache.") // TODO Just for testing
-
-	res, err = repository.GetCacheValue("teste")
-	if err != nil {
-		panic(err)
-	}
-	log.Debug().Str("result", res).Msg("Get value on cache.") // TODO Just for testing
-
 	messaging.Config()
 
-	messaging.SendHealthMessage("server 1 is healthy")
-
-	msg, err := messaging.GetHealthMessage()
-	if err != nil {
-		panic(err)
-	}
-	log.Debug().Str("result", msg).Msg("Health Message from SQS.") // TODO Just for testing
-
 	// Config telemetry
-	tp, err := telemetry.ConfigTracerProvider()
+	tp, err := telemetry.Config()
 	if err != nil {
 		panic(err)
 	}
@@ -82,8 +49,8 @@ func main() {
 	}(ctx)
 
 	// Config load balancer
-	loadbalancer.ConfigLoadBalancer()
+	loadbalancer.Config()
 
 	// Config server and routes
-	api.ConfigServer()
+	api.Config()
 }
