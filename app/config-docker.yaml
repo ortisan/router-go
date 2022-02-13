@@ -18,12 +18,30 @@ servers:
   -
     server_name: Server 1
     service_prefix: app1
-    endpoint_url: http://server1:8081/api/v1
+    endpoint_url: http://dummy-app1:8080
     zone_aws: sa-east-1a
     alive: true
     healthcheck:
       type: http
-      endpoint: /actuator/health
+      endpoint: http://dummy-app1:8081/actuator/health
+  -
+    server_name: Server 2
+    service_prefix: app2
+    endpoint_url: http://dummy-app2:8080
+    zone_aws: sa-east-1a
+    alive: true
+    healthcheck:
+      type: http
+      endpoint: http://dummy-app3:8081/actuator/health
+  -
+    server_name: Server 3
+    service_prefix: app3
+    endpoint_url: http://dummy-app3:8080
+    zone_aws: sa-east-1a
+    alive: true
+    healthcheck:
+      type: http
+      endpoint: http://dummy-app3:8081/actuator/health
 app:
   name: "Router"
   server_address: 0.0.0.0:8080

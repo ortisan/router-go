@@ -28,15 +28,15 @@ import (
 const (
 	Attempts int = iota
 	Retry
-	HealthCheckTicksTime = 30 * time.Second
+	HealthCheckTicksTime = 10 * time.Second
 	PrefixConfig         = "/services/prefix/"
 	MaxRetries           = 3
 	BackoffTimeout       = 10 * time.Millisecond
 	StatusUp             = "up"
 	statusDown           = "down"
 
-	HealthCheckDialUp = iota
-	HealthCheckHttp   = iota
+	HealthCheckDialUp = 1
+	HealthCheckHttp   = 2
 )
 
 type HealthCheck struct {

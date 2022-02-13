@@ -37,7 +37,7 @@ public class Controller {
   }
 
   @PostMapping("/posts")
-  public Post createPost(Post post) {
+  public Post createPost(@RequestBody Post post) {
     Long id = postGenId.incrementAndGet();
     post.setId(id);
     posts.put(id, post);
@@ -45,7 +45,7 @@ public class Controller {
   }
 
   @PutMapping("/posts/{id}")
-  public Post updatePost(@PathVariable Long id, Post post) {
+  public Post updatePost(@PathVariable Long id, @RequestBody Post post) {
     Post postDb = posts.get(id);
     if (postDb == null) {
       throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Post not found.");
@@ -56,7 +56,7 @@ public class Controller {
   }
 
   @PatchMapping("/posts/{id}")
-  public Post updatePartially(@PathVariable Long id, Post post) {
+  public Post updatePartially(@PathVariable Long id, @RequestBody Post post) {
     return updatePost(id, post);
   }
 

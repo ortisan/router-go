@@ -78,7 +78,7 @@ func HandleRequest(c *gin.Context) {
 	if len(apiPaths) < 2 {
 		panic(errApp.NewBadRequestErrorWithCause("Router can't process this request. Format of url must be /{prefix api}/{all_rest}", nil))
 	}
-	servicePrefix := apiPaths[1] // in url "http://xpto.com/api1/xpto", gets the "api1" value
+	servicePrefix := apiPaths[1] // in url "http://xpto.com/api/api1/xpto", gets the "api1" value
 
 	serverPool := loadbalancer.ServerPoolsObj.GetServerPoolByPrefix(servicePrefix)
 	if serverPool == nil {

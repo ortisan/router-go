@@ -63,5 +63,6 @@ awslocal sns publish --topic-arn arn:aws:sns:sa-east-1:000000000000:health-cells
 # Read SQS Message
 awslocal sqs receive-message --queue-url http://localhost:4566/000000000000/health-cells-queue --endpoint-url=http://localhost:4566
 
-
+# Build and start docker-compose
+sh build.sh
 ```

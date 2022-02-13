@@ -15,6 +15,10 @@ import java.util.Random;
 
 import static com.ortiz.dummyapp.Constants.PARAMETER_STORE_NAME;
 
+/**
+ * This class is just to read parameter with number that indicates % of errors.
+ * Try to simulate errors with api.
+ */
 public class ErrorGenerationInterceptor implements HandlerInterceptor {
 
   private String parameterStoreName;
