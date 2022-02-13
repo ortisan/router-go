@@ -23,7 +23,7 @@ servers:
     alive: true
     healthcheck:
       type: http
-      endpoint: http://dummy-app1:8081/actuator/health
+      endpoint: http://dummy-app1:8080/actuator/health
   -
     server_name: Server 2
     service_prefix: app2
@@ -32,7 +32,7 @@ servers:
     alive: true
     healthcheck:
       type: http
-      endpoint: http://dummy-app3:8081/actuator/health
+      endpoint: http://dummy-app3:8080/actuator/health
   -
     server_name: Server 3
     service_prefix: app3
@@ -41,7 +41,7 @@ servers:
     alive: true
     healthcheck:
       type: http
-      endpoint: http://dummy-app3:8081/actuator/health
+      endpoint: http://dummy-app3:8080/actuator/health
 app:
   name: "Router"
   server_address: 0.0.0.0:8080

@@ -4,6 +4,7 @@ import com.amazonaws.client.builder.AwsClientBuilder;
 import com.amazonaws.services.simplesystemsmanagement.AWSSimpleSystemsManagement;
 import com.amazonaws.services.simplesystemsmanagement.AWSSimpleSystemsManagementClientBuilder;
 import com.ortiz.dummyapp.web.ErrorGenerationInterceptor;
+import com.ortiz.dummyapp.web.ErrorThresholdResolver;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -26,9 +27,14 @@ public class Config implements WebMvcConfigurer {
     return client;
   }
 
+  @Bean
+  public ErrorThresholdResolver errorThresholdResolver() {
+    return new ErrorThresholdResolver(ssmClient());
+  }
+
   @Override
   public void addInterceptors(InterceptorRegistry registry) {
-    registry.addInterceptor(new ErrorGenerationInterceptor(ssmClient())).addPathPatterns("/**");
-    // .excludePathPatterns("/actuator/**");
+    registry.addInterceptor(new ErrorGenerationInterceptor(errorThresholdResolver())).addPathPatterns("/**")
+      .excludePathPatterns("/error", "/favicon.ico");
   }
 }
