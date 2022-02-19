@@ -35,7 +35,7 @@ servers:
       endpoint: http://localhost:8082/actuator/health
   -
     server_name: Server 3
-    service_prefix: app3
+    service_prefix: app1
     endpoint_url: http://localhost:8083
     zone_aws: sa-east-1a
     alive: true

@@ -3,6 +3,7 @@ package loadbalancer
 // Forked by https://github.com/kasvith/simplelb
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -33,10 +34,11 @@ const (
 	MaxRetries           = 3
 	BackoffTimeout       = 10 * time.Millisecond
 	StatusUp             = "up"
-	statusDown           = "down"
-
-	HealthCheckDialUp = 1
-	HealthCheckHttp   = 2
+	StatusDown           = "down"
+	HealthCheckDialUp    = 1
+	HealthCheckHttp      = 2
+	HealthCheckTypeTCP   = "tcp"
+	HealthCheckTypeHTTP  = "http"
 )
 
 type HealthCheck struct {
@@ -44,37 +46,79 @@ type HealthCheck struct {
 	Endpoint string
 }
 
+type Counts struct {
+	Requests             uint32       `json:"requests"`
+	TotalSuccesses       uint32       `json:"total_successes"`
+	TotalFailures        uint32       `json:"total_failures"`
+	ConsecutiveSuccesses uint32       `json:"consecutive_successes"`
+	ConsecutiveFailures  uint32       `json:"consecutive_failures"`
+	mux                  sync.RWMutex `json:"-"`
+}
+
+func (c *Counts) onRequest() {
+	c.mux.RLock()
+	c.Requests++
+	c.mux.RUnlock()
+}
+
+func (c *Counts) onSuccess() {
+	c.mux.RLock()
+	c.TotalSuccesses++
+	c.ConsecutiveSuccesses++
+	c.ConsecutiveFailures = 0
+	c.mux.RUnlock()
+}
+
+func (c *Counts) onFailure() {
+	c.mux.RLock()
+	c.TotalFailures++
+	c.ConsecutiveFailures++
+	c.ConsecutiveSuccesses = 0
+	c.mux.RUnlock()
+}
+
+func (c *Counts) clear() {
+	c.mux.RLock()
+	c.Requests = 0
+	c.TotalSuccesses = 0
+	c.TotalFailures = 0
+	c.ConsecutiveSuccesses = 0
+	c.ConsecutiveFailures = 0
+	c.mux.RUnlock()
+}
+
 // Backend holds the data about a server
 type Backend struct {
-	ServicePrefix string
-	URL           *url.URL
-	ZoneAws       string
-	Alive         bool
-	HealthCheck   HealthCheck
-	mux           sync.RWMutex
+	ServicePrefix             string        `json:"ServicePrefix"`
+	URL                       *url.URL      `json:"url"`
+	ZoneAws                   string        `json:"zone_aws"`
+	HealthCheck               HealthCheck   `json:"healthcheck"`
+	Alive                     bool          `json:"alive"`
+	CountsRequests            *Counts       `json:"counts_requests"`
+	CountsHealthChecks        *Counts       `json:"counts_healthchecks"`
+	IntervalToReceiveRequests time.Duration `json:"intervalreceiverequests"`
+	mux                       sync.RWMutex  `json:"-"`
 }
 
 func newHealthcheck(typeStr string, endpoint string) HealthCheck {
-	if typeStr == "tcp" {
+	if typeStr == HealthCheckTypeTCP {
 		return HealthCheck{Type: HealthCheckDialUp, Endpoint: endpoint}
 	} else {
 		return HealthCheck{Type: HealthCheckHttp, Endpoint: endpoint}
 	}
 }
 
-// SetAlive for this backend
-func (b *Backend) SetAlive(alive bool) {
-	b.mux.Lock()
-	b.Alive = alive
-	b.mux.Unlock()
-}
-
 // IsAlive returns true when backend is alive
-func (b *Backend) IsAlive() (alive bool) {
+func (b *Backend) IsAlive() bool {
 	b.mux.RLock()
-	alive = b.Alive
+
+	var alive = true
+	if b.CountsHealthChecks.ConsecutiveFailures >= MaxRetries || b.CountsRequests.ConsecutiveFailures >= MaxRetries {
+		alive = false
+	}
+
 	b.mux.RUnlock()
-	return
+	return alive
 }
 
 // ServerPool holds information about reachable backends
@@ -114,16 +158,6 @@ func (s *ServerPools) GetServerPoolByPrefix(prefix string) *ServerPool {
 // NextIndex atomically increase the counter and return an index
 func (s *ServerPool) NextIndex() int {
 	return int(atomic.AddUint64(&s.current, uint64(1)) % uint64(len(s.backends)))
-}
-
-// MarkBackendStatus changes a status of a backend
-func (s *ServerPool) MarkBackendStatus(backendUrl *url.URL, alive bool) {
-	for _, b := range s.backends {
-		if b.URL.String() == backendUrl.String() {
-			b.SetAlive(alive)
-			break
-		}
-	}
 }
 
 // GetNextPeer returns next active peer to take a connection
@@ -218,7 +252,6 @@ var tracer = otel.Tracer(config.ConfigObj.App.Name)
 
 // isAlive checks whether a backend is Alive by establishing a TCP connection
 func (b *Backend) doHealthCheck() {
-	var alive = false
 
 	if b.HealthCheck.Type == HealthCheckDialUp {
 		timeout := 2 * time.Second
@@ -226,30 +259,34 @@ func (b *Backend) doHealthCheck() {
 		if !strings.Contains(address, ":") {
 			address = fmt.Sprintf("%s:%s", address, "80")
 		}
+		b.CountsHealthChecks.onRequest()
 		conn, err := net.DialTimeout("tcp", address, timeout)
 		if err != nil {
 			log.Warn().Err(err).Msg("Server healthcheck error.")
+			b.CountsHealthChecks.onFailure()
 		} else {
-			alive = true
+			defer conn.Close()
+			b.CountsHealthChecks.onSuccess()
 		}
-		defer conn.Close()
 	} else {
+		b.CountsHealthChecks.onRequest()
 		resp, err := http.Get(b.HealthCheck.Endpoint)
 		if err != nil {
 			log.Warn().Err(err).Msg("Server healthcheck error.")
+			b.CountsHealthChecks.onFailure()
+		} else if resp.StatusCode == http.StatusOK {
+			b.CountsHealthChecks.onSuccess()
 		} else {
-			alive = resp.StatusCode == http.StatusOK
+			b.CountsHealthChecks.onFailure()
 		}
 	}
-	b.SetAlive(alive)
-	var status string
-	if alive {
-		status = StatusUp
-	} else {
-		status = statusDown
+
+	jsonServer, err := json.Marshal(b)
+	if err != nil {
+		panic(err)
 	}
 	serverId := fmt.Sprintf("servers-%s-%s", b.ServicePrefix, b.URL.String())
-	repository.PutCacheValue(serverId, status)
+	repository.PutCacheValue(serverId, string(jsonServer))
 }
 
 // healthCheck runs a routine for check status of the backends every 30 seconds
@@ -299,8 +336,8 @@ func Config() {
 		}
 
 		// Update status status from cache db
-		serverId := fmt.Sprintf("servers-%s-%s", server.ServicePrefix, server.EndpointUrl)
-		serverStatus, err := repository.GetCacheValue(serverId)
+		serverKey := fmt.Sprintf("servers-%s-%s", server.ServicePrefix, server.EndpointUrl)
+		jsonServer, err := repository.GetCacheValue(serverKey)
 		var alive = false
 		if err != nil {
 			switch err.(type) {
@@ -310,9 +347,27 @@ func Config() {
 				panic(err)
 			}
 		}
-		alive = alive || serverStatus == StatusUp
+
+		var countsRequests = Counts{}
+		var countsHealthChecks = Counts{}
+
+		if len(jsonServer) > 0 {
+			b := Backend{}
+			json.Unmarshal([]byte(jsonServer), &b)
+			countsRequests = *b.CountsRequests
+			countsHealthChecks = *b.CountsHealthChecks
+		}
+
 		// Add server to serverpool
-		serverPool.AddBackend(&Backend{ServicePrefix: server.ServicePrefix, URL: serverUrl, Alive: alive, ZoneAws: server.ZoneAws, HealthCheck: newHealthcheck(server.HealthCheck.Type, server.HealthCheck.Endpoint)})
+		serverPool.AddBackend(&Backend{
+			ServicePrefix:      server.ServicePrefix,
+			URL:                serverUrl,
+			ZoneAws:            server.ZoneAws,
+			HealthCheck:        newHealthcheck(server.HealthCheck.Type, server.HealthCheck.Endpoint),
+			Alive:              alive,
+			CountsRequests:     &countsRequests,
+			CountsHealthChecks: &countsHealthChecks},
+		)
 	}
 
 	// start health checking
