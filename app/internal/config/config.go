@@ -61,7 +61,7 @@ type Server struct {
 	HealthCheck   HealthCheck `mapstructure:"healthcheck"`
 }
 
-func LoadConfig() (config Config) {
+func Setup() (config Config) {
 	viper.AddConfigPath(".")
 	viper.AddConfigPath("../internal/config/")
 	viper.SetConfigName("config")
@@ -80,4 +80,4 @@ func LoadConfig() (config Config) {
 	return
 }
 
-var ConfigObj = LoadConfig()
+var ConfigObj = Setup()

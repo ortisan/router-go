@@ -316,7 +316,7 @@ func HeadersDisabledInRedirection() func(string) bool {
 	}
 }
 
-func Config() {
+func Setup() {
 
 	serversConfig := config.ConfigObj.Servers
 

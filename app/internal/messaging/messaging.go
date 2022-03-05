@@ -16,7 +16,7 @@ var (
 	timeoutVisibility int64 = 12 * 60
 )
 
-func Config() {
+func Setup() {
 	// Config region
 	awsConfig.WithRegion(config.ConfigObj.AWS.Region)
 	// Config endpoint url (local and docker env)

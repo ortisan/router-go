@@ -96,7 +96,7 @@ func HandleRequest(c *gin.Context) {
 	}
 }
 
-func Config() {
+func Setup() *gin.Engine {
 	r := gin.Default()
 
 	// Middlewares
@@ -117,6 +117,5 @@ func Config() {
 		ginSwagger.URL("http://localhost:8080/swagger/doc.json"),
 		ginSwagger.DefaultModelsExpandDepth(-1)))
 
-	// Running server
-	r.Run(config.ConfigObj.App.ServerAddress) // Listen server
+	return r
 }
