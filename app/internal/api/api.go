@@ -28,10 +28,12 @@ func ErrorHandler() gin.HandlerFunc {
 				case errApp.IWithMessageAndStatusCode:
 					error := err.(errApp.IWithMessageAndStatusCode)
 					errObj := errApp.Error{Message: error.Error(), Cause: error.Cause(), StackTrace: error.StackTrace()}
-					c.Data(error.Status(), c.GetHeader(constant.ContentTypeHeaderName), util.ObjectToJson(errObj)) // Data is returned
+					errJsonBytes, _ := util.ObjectToJsonBytes(errObj)
+					c.Data(error.Status(), c.GetHeader(constant.ContentTypeHeaderName), errJsonBytes) // Data is returned
 				default:
 					errObj := errApp.Error{Message: err.(error).Error(), StackTrace: string(debug.Stack())}
-					c.Data(http.StatusInternalServerError, c.GetHeader(constant.ContentTypeHeaderName), util.ObjectToJson(errObj)) // Data is returned
+					errJsonBytes, _ := util.ObjectToJsonBytes(errObj)
+					c.Data(http.StatusInternalServerError, c.GetHeader(constant.ContentTypeHeaderName), errJsonBytes) // Data is returned
 				}
 			}
 		}()

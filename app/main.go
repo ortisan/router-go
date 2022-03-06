@@ -7,7 +7,6 @@ import (
 	"github.com/ortisan/router-go/internal/api"
 	"github.com/ortisan/router-go/internal/config"
 	"github.com/ortisan/router-go/internal/loadbalancer"
-	"github.com/ortisan/router-go/internal/messaging"
 	"github.com/ortisan/router-go/internal/telemetry"
 	"github.com/rs/zerolog"
 )
@@ -29,8 +28,6 @@ import (
 // @schemes http
 func main() {
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
-
-	messaging.Setup()
 
 	// Config telemetry
 	tp, err := telemetry.Setup()

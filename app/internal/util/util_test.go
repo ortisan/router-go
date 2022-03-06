@@ -1,7 +1,6 @@
 package util
 
 import (
-	"regexp"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -17,7 +16,6 @@ type TestObject struct {
 
 func newTestObject() TestObject {
 	return TestObject{Id: "123456"}
-
 }
 
 func TestGetSubstringAfter(t *testing.T) {
@@ -28,13 +26,12 @@ func TestGetSubstringAfter(t *testing.T) {
 
 func TestObjectToJson(t *testing.T) {
 	obj := newTestObject()
-	objStr, _ := ObjectToJson(obj)
-	matched, _ := regexp.MatchString("\"id\":\"123456\"", string(objStr))
-	assert.Equal(t, objAsString, matched)
+	objBytes, _ := ObjectToJson(obj)
+	assert.Equal(t, objAsString, string(objBytes))
 }
 
 func TestStringToObject(t *testing.T) {
-	obj = make(TestObject)
-
-	StringToObject(objAsString, TestObject{})
+	obj := TestObject{}
+	StringToObject(objAsString, &obj)
+	assert.Equal(t, newTestObject(), obj)
 }

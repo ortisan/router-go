@@ -1,10 +1,14 @@
 package repository
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io"
+	"strings"
 	"time"
 
+	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/go-redis/redis"
 	"github.com/ortisan/router-go/internal/config"
 	errApp "github.com/ortisan/router-go/internal/error"
@@ -127,7 +131,7 @@ func GetCacheValue(key string) (string, error) {
 	}
 	defer cli.Close()
 
-	log.Debug().Str("key", key).Msg("Trying to get value in redis...")
+	log.Debug().Str("key", key).Msg("Trying to get value from redis...")
 	value, err := cli.Get(key).Result()
 
 	if err != nil {
@@ -149,13 +153,58 @@ func PutCacheValue(key string, value string) (string, error) {
 	}
 	defer cli.Close()
 
-	log.Debug().Str("key", key).Str("value", value).Msg("Trying to put value in redis...")
+	log.Debug().Str("key", key).Str("value", value).Msg("Trying to put value from redis...")
 	result, err := cli.Set(key, value, 0*time.Second).Result()
 
 	if err != nil {
 		return "", err
 	}
 
-	log.Debug().Str("key", key).Str("value", value).Msg("Value inserted into redis...")
+	log.Debug().Str("key", key).Str("value", value).Msg("Object inserted into redis...")
 	return result, nil
+}
+
+func PutObject(bucket string, key string, value string) error {
+	log.Debug().Str("key", key).Str("value", value).Msg("Trying to put object in S3...")
+
+	svc := s3.New(config.NewAWSSession())
+	_, err := svc.PutObject(&s3.PutObjectInput{
+		Body:   strings.NewReader(value),
+		Bucket: &bucket,
+		Key:    &key,
+	})
+
+	log.Debug().Str("bucket", bucket).Str("key", key).Str("value", value).Msg("Object putted into S3...")
+	return err
+}
+
+func GetObject(bucket string, key string) (string, error) {
+	log.Debug().Str("bucket", bucket).Str("key", key).Msg("Trying to get object from S3...")
+
+	svc := s3.New(config.NewAWSSession())
+	out, err := svc.GetObject(&s3.GetObjectInput{
+		Bucket: &bucket,
+		Key:    &key,
+	})
+
+	if err != nil {
+		return "", err
+	}
+
+	size := int(*out.ContentLength)
+	buffer := make([]byte, size)
+	defer out.Body.Close()
+	var bbuffer bytes.Buffer
+	for true {
+		num, rerr := out.Body.Read(buffer)
+		if num > 0 {
+			bbuffer.Write(buffer[:num])
+		} else if rerr == io.EOF || rerr != nil {
+			break
+		}
+	}
+
+	value := bbuffer.String()
+	log.Debug().Str("bucket", bucket).Str("key", key).Str("value", value).Msg("Object readed from S3...")
+	return value, nil
 }

@@ -1,6 +1,8 @@
 package config
 
 import (
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/spf13/viper"
 )
 
@@ -80,4 +82,24 @@ func Setup() (config Config) {
 	return
 }
 
+func SetupAws() *aws.Config {
+	awsConfig := aws.NewConfig()
+	// Config region
+	awsConfig.WithRegion(ConfigObj.AWS.Region)
+	// Config endpoint url (local and docker env)
+	if len(ConfigObj.AWS.EndpointUrl) > 0 {
+		awsConfig.WithEndpoint(ConfigObj.AWS.EndpointUrl)
+	}
+
+	return awsConfig
+}
+
+func NewAWSSession() *session.Session {
+	return session.Must(session.NewSessionWithOptions(session.Options{
+		Config:            *AwsConfig,
+		SharedConfigState: session.SharedConfigEnable,
+	}))
+}
+
 var ConfigObj = Setup()
+var AwsConfig = SetupAws()
