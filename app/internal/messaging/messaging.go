@@ -12,20 +12,10 @@ import (
 )
 
 var (
-	awsConfig               = *aws.NewConfig()
 	timeoutVisibility int64 = 12 * 60
 )
 
-func Config() {
-	// Config region
-	awsConfig.WithRegion(config.ConfigObj.AWS.Region)
-	// Config endpoint url (local and docker env)
-	if len(config.ConfigObj.AWS.EndpointUrl) > 0 {
-		awsConfig.WithEndpoint(config.ConfigObj.AWS.EndpointUrl)
-	}
-}
-
-func getMessages(sess *session.Session, queueURL *string, timeout *int64) (*sqs.ReceiveMessageOutput, error) {
+func getMessagesWithSession(sess *session.Session, queueURL *string, timeout *int64) (*sqs.ReceiveMessageOutput, error) {
 	// Create an SQS service client
 	client := sqs.New(sess)
 
@@ -48,18 +38,19 @@ func getMessages(sess *session.Session, queueURL *string, timeout *int64) (*sqs.
 	return result, nil
 }
 
-func GetHealthMessage() (string, error) {
-	sess := session.Must(session.NewSessionWithOptions(session.Options{
-		Config:            awsConfig,
-		SharedConfigState: session.SharedConfigEnable,
-	}))
+func getMessages(queueURL *string, timeout *int64) (*sqs.ReceiveMessageOutput, error) {
+	return getMessagesWithSession(config.NewAWSSession(), queueURL, timeout)
+}
 
-	result, err := getMessages(sess, &config.ConfigObj.AWS.SQS.HealthQueueUrl, &timeoutVisibility)
+func GetHealthMessage() (string, error) {
+
+	result, err := getMessages(&config.ConfigObj.AWS.SQS.HealthQueueUrl, &timeoutVisibility)
 
 	if err != nil {
 		return "", errApp.NewIntegrationError("Error to get sqs messages.", err)
 	}
-	msgReturn := string(util.ObjectToJson(result))
+
+	msgReturn, err := util.ObjectToJson(result)
 
 	log.Debug().Msg(msgReturn)
 
@@ -68,7 +59,7 @@ func GetHealthMessage() (string, error) {
 
 func SendHealthMessage(message string) error {
 	sess := session.Must(session.NewSessionWithOptions(session.Options{
-		Config:            awsConfig,
+		Config:            *config.AwsConfig,
 		SharedConfigState: session.SharedConfigEnable,
 	}))
 

@@ -5,8 +5,8 @@ import (
 	"time"
 
 	"github.com/ortisan/router-go/internal/api"
+	"github.com/ortisan/router-go/internal/config"
 	"github.com/ortisan/router-go/internal/loadbalancer"
-	"github.com/ortisan/router-go/internal/messaging"
 	"github.com/ortisan/router-go/internal/telemetry"
 	"github.com/rs/zerolog"
 )
@@ -29,10 +29,8 @@ import (
 func main() {
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
 
-	messaging.Config()
-
 	// Config telemetry
-	tp, err := telemetry.Config()
+	tp, err := telemetry.Setup()
 	if err != nil {
 		panic(err)
 	}
@@ -49,8 +47,11 @@ func main() {
 	}(ctx)
 
 	// Config load balancer
-	loadbalancer.Config()
+	loadbalancer.Setup()
 
 	// Config server and routes
-	api.Config()
+	r := api.Setup()
+
+	// Running server
+	r.Run(config.ConfigObj.App.ServerAddress) // Listen server
 }

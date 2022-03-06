@@ -16,11 +16,11 @@ const (
 	id          = 1
 )
 
-// Config returns an OpenTelemetry TracerProvider configured to use
+// Setup returns an OpenTelemetry TracerProvider configured to use
 // the Jaeger exporter that will send spans to the provided url. The returned
 // TracerProvider will also use a Resource configured with all the information
 // about the application.
-func Config() (*sdktrace.TracerProvider, error) {
+func Setup() (*sdktrace.TracerProvider, error) {
 	// Create the Jaeger exporter
 
 	exp, err := jaeger.New(
