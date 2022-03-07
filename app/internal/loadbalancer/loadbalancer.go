@@ -90,6 +90,9 @@ func (c *Counts) clear() {
 }
 
 // Backend holds the data about a server
+type Backend2 struct {
+	ServicePrefix string `json:"ServicePrefix"`
+}
 type Backend struct {
 	ServicePrefix             string        `json:"ServicePrefix"`
 	URL                       *url.URL      `json:"url"`
@@ -180,7 +183,7 @@ func (s *ServerPool) GetNextBackend() *Backend {
 			continue
 		}
 
-		_, err2 := util.StringToObject(bStrObject, *b)
+		_, err2 := util.StringToObject(bStrObject, b)
 		if err2 != nil {
 			log.Err(err2)
 			continue

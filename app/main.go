@@ -7,7 +7,6 @@ import (
 	"github.com/ortisan/router-go/internal/api"
 	"github.com/ortisan/router-go/internal/config"
 	"github.com/ortisan/router-go/internal/loadbalancer"
-	"github.com/ortisan/router-go/internal/messaging"
 	"github.com/ortisan/router-go/internal/telemetry"
 	"github.com/rs/zerolog"
 )
@@ -46,8 +45,6 @@ func main() {
 			panic(err)
 		}
 	}(ctx)
-
-	messaging.SendHealthMessage("test")
 
 	// Config load balancer
 	loadbalancer.Setup()
