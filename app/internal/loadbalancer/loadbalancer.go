@@ -24,6 +24,7 @@ import (
 	"github.com/ortisan/router-go/internal/constant"
 	errApp "github.com/ortisan/router-go/internal/error"
 	"github.com/ortisan/router-go/internal/repository"
+	"github.com/ortisan/router-go/internal/util"
 )
 
 const (
@@ -39,6 +40,7 @@ const (
 	HealthCheckHttp      = 2
 	HealthCheckTypeTCP   = "tcp"
 	HealthCheckTypeHTTP  = "http"
+	BucketHealthCells    = "health-cells"
 )
 
 type HealthCheck struct {
@@ -96,7 +98,8 @@ type Backend struct {
 	Alive                     bool          `json:"alive"`
 	CountsRequests            *Counts       `json:"counts_requests"`
 	CountsHealthChecks        *Counts       `json:"counts_healthchecks"`
-	IntervalToReceiveRequests time.Duration `json:"intervalreceiverequests"`
+	IntervalToReceiveRequests time.Duration `json:"interval_to_receive_requests"`
+	UpdateDate                time.Time     `json:"update_date"`
 	mux                       sync.RWMutex  `json:"-"`
 }
 
@@ -160,14 +163,30 @@ func (s *ServerPool) NextIndex() int {
 	return int(atomic.AddUint64(&s.current, uint64(1)) % uint64(len(s.backends)))
 }
 
-// GetNextPeer returns next active peer to take a connection
-func (s *ServerPool) GetNextPeer() *Backend {
+// GetNextBackend returns next active backend to take a connection
+func (s *ServerPool) GetNextBackend() *Backend {
 	// loop entire backends to find out an Alive backend
 	next := s.NextIndex()
 	l := len(s.backends) + next // start from next and move a full cycle
 	for i := next; i < l; i++ {
-		idx := i % len(s.backends)     // take an index by modding
-		if s.backends[idx].IsAlive() { // if we have an alive backend, use it and store if its not the original one
+		idx := i % len(s.backends) // take an index by modding
+		b := s.backends[idx]
+
+		// Reading from bucket
+		serverId := fmt.Sprintf("servers-%s", b.ServicePrefix)
+		bStrObject, err := repository.GetStringObject(BucketHealthCells, serverId)
+		if err != nil {
+			log.Err(err)
+			continue
+		}
+
+		_, err2 := util.StringToObject(bStrObject, *b)
+		if err2 != nil {
+			log.Err(err2)
+			continue
+		}
+
+		if b.IsAlive() { // if we have an alive backend, use it and store if its not the original one
 			if i != next {
 				atomic.StoreUint64(&s.current, uint64(idx))
 			}
@@ -179,7 +198,7 @@ func (s *ServerPool) GetNextPeer() *Backend {
 
 func (s *ServerPool) HandleRequest(c *gin.Context, pathUri string, method string, headers map[string][]string) {
 
-	peer := s.GetNextPeer()
+	peer := s.GetNextBackend()
 	if peer == nil {
 		panic(errApp.NewGenericError("No backend servers was found", nil))
 	}
@@ -251,7 +270,7 @@ func GetRetryFromContext(r *http.Request) int {
 var tracer = otel.Tracer(config.ConfigObj.App.Name)
 
 // isAlive checks whether a backend is Alive by establishing a TCP connection
-func (b *Backend) doHealthCheck() {
+func (b *Backend) doHealthCheck() error {
 
 	if b.HealthCheck.Type == HealthCheckDialUp {
 		timeout := 2 * time.Second
@@ -281,12 +300,15 @@ func (b *Backend) doHealthCheck() {
 		}
 	}
 
-	jsonServer, err := json.Marshal(b)
+	b.UpdateDate = time.Now()
+
+	jsonBackend, err := json.Marshal(b)
 	if err != nil {
-		panic(err)
+		return err
 	}
-	serverId := fmt.Sprintf("servers-%s-%s", b.ServicePrefix, b.URL.String())
-	repository.PutCacheValue(serverId, string(jsonServer))
+	serverId := fmt.Sprintf("servers-%s", b.ServicePrefix)
+	repository.PutStringObject(BucketHealthCells, serverId, string(jsonBackend))
+	return nil
 }
 
 // healthCheck runs a routine for check status of the backends every 30 seconds
@@ -336,7 +358,7 @@ func Setup() {
 		}
 
 		// Update status status from cache db
-		serverKey := fmt.Sprintf("servers-%s-%s", server.ServicePrefix, server.EndpointUrl)
+		serverKey := fmt.Sprintf("servers-%s", server.ServicePrefix)
 		jsonServer, err := repository.GetCacheValue(serverKey)
 		var alive = false
 		if err != nil {

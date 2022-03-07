@@ -26,7 +26,7 @@ func TestGetSubstringAfter(t *testing.T) {
 
 func TestObjectToJson(t *testing.T) {
 	obj := newTestObject()
-	objBytes, _ := ObjectToJson(obj)
+	objBytes, _ := ObjectToJsonStr(obj)
 	assert.Equal(t, objAsString, string(objBytes))
 }
 

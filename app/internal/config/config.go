@@ -2,6 +2,7 @@ package config
 
 import (
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/spf13/viper"
 )
@@ -42,11 +43,17 @@ type SQS struct {
 	HealthQueueUrl string `mapstructure:"health_queue_url"`
 }
 
+type Credentials struct {
+	AccessKeyID  string `mapstructure:"access_key_id"`
+	ClientSecret string `mapstructure:"secret_access_key"`
+}
+
 type AWS struct {
-	Region      string `mapstructure:"region"`
-	EndpointUrl string `mapstructure:"endpoint_url"`
-	SNS         SNS    `mapstructure:"sns"`
-	SQS         SQS    `mapstructure:"sqs"`
+	Region      string      `mapstructure:"region"`
+	Credentials Credentials `mapstructure:"credentials"`
+	EndpointUrl string      `mapstructure:"endpoint_url"`
+	SNS         SNS         `mapstructure:"sns"`
+	SQS         SQS         `mapstructure:"sqs"`
 }
 
 type HealthCheck struct {
@@ -84,8 +91,14 @@ func Setup() (config Config) {
 
 func SetupAws() *aws.Config {
 	awsConfig := aws.NewConfig()
+	// Config credentials
+	if ConfigObj.AWS.Credentials.AccessKeyID != "" {
+		awsConfig.WithCredentials(credentials.NewStaticCredentials(ConfigObj.AWS.Credentials.AccessKeyID, ConfigObj.AWS.Credentials.ClientSecret, ""))
+	}
 	// Config region
 	awsConfig.WithRegion(ConfigObj.AWS.Region)
+	awsConfig.WithS3ForcePathStyle(true)
+
 	// Config endpoint url (local and docker env)
 	if len(ConfigObj.AWS.EndpointUrl) > 0 {
 		awsConfig.WithEndpoint(ConfigObj.AWS.EndpointUrl)

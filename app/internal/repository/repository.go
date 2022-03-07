@@ -164,21 +164,24 @@ func PutCacheValue(key string, value string) (string, error) {
 	return result, nil
 }
 
-func PutObject(bucket string, key string, value string) error {
+func PutStringObject(bucket string, key string, value string) error {
 	log.Debug().Str("key", key).Str("value", value).Msg("Trying to put object in S3...")
 
-	svc := s3.New(config.NewAWSSession())
+	svc := s3.New(config.NewAWSSession(), config.AwsConfig)
 	_, err := svc.PutObject(&s3.PutObjectInput{
 		Body:   strings.NewReader(value),
 		Bucket: &bucket,
 		Key:    &key,
 	})
 
-	log.Debug().Str("bucket", bucket).Str("key", key).Str("value", value).Msg("Object putted into S3...")
+	if err == nil {
+		log.Debug().Str("bucket", bucket).Str("key", key).Str("value", value).Msg("Object putted into S3...")
+	}
+
 	return err
 }
 
-func GetObject(bucket string, key string) (string, error) {
+func GetStringObject(bucket string, key string) (string, error) {
 	log.Debug().Str("bucket", bucket).Str("key", key).Msg("Trying to get object from S3...")
 
 	svc := s3.New(config.NewAWSSession())

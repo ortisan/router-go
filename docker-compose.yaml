@@ -60,30 +60,30 @@ services:
       timeout: 10s
       retries: 5
 
-  router-app:
-    build: .
-    ports:
-      - 8080:8080
-    deploy:
-      resources:
-        reservations:
-          cpus: 0.5
-          memory: 512M
-        limits:
-          cpus: 1
-          memory: 1024M
-    restart: on-failure
-    depends_on:
-      - etcd
-      - redis
-    links:
-      - etcd
-      - redis
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/metrics"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
+  # router-app:
+  #   build: .
+  #   ports:
+  #     - 8080:8080
+  #   deploy:
+  #     resources:
+  #       reservations:
+  #         cpus: 0.5
+  #         memory: 512M
+  #       limits:
+  #         cpus: 1
+  #         memory: 1024M
+  #   restart: on-failure
+  #   depends_on:
+  #     - etcd
+  #     - redis
+  #   links:
+  #     - etcd
+  #     - redis
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost:8080/metrics"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 5
 
   dummy-app1:
     build: dummy-app/

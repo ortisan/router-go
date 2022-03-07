@@ -50,7 +50,7 @@ func GetHealthMessage() (string, error) {
 		return "", errApp.NewIntegrationError("Error to get sqs messages.", err)
 	}
 
-	msgReturn, err := util.ObjectToJson(result)
+	msgReturn, err := util.ObjectToJsonStr(result)
 
 	log.Debug().Msg(msgReturn)
 

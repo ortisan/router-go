@@ -9,6 +9,9 @@ opentelemetry:
   agent_port: 6831
 aws:
   region: sa-east-1
+  credentials:
+    access_key_id: test
+    secret_access_key: test
   endpoint_url: http://localhost:4566
   sns:
     health_topic_arn: arn:aws:sns:sa-east-1:000000000000:health-cells-topic
