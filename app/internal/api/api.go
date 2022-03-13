@@ -92,7 +92,10 @@ func HandleRequest(c *gin.Context) {
 	if retries < loadbalancer.MaxRetries {
 		select {
 		case <-time.After(loadbalancer.BackoffTimeout):
-			serverPool.HandleRequest(c, util.GetSubstringAfter(resource, servicePrefix), r.Method, r.Header)
+			err := serverPool.HandleRequest(c, util.GetSubstringAfter(resource, servicePrefix), r.Method, r.Header)
+			if err != nil {
+				panic(err)
+			}
 		}
 	}
 }
