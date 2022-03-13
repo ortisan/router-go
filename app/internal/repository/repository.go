@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/go-redis/redis"
 	"github.com/ortisan/router-go/internal/config"
@@ -191,7 +192,15 @@ func GetStringObject(bucket string, key string) (string, error) {
 	})
 
 	if err != nil {
-		return "", err
+		switch err.(type) {
+		case awserr.RequestFailure:
+			aerr := err.(awserr.Error)
+			switch aerr.Code() {
+			case s3.ErrCodeNoSuchKey:
+				return "", errApp.NewNotFoundError("S3 Key not found")
+			}
+			return "", err
+		}
 	}
 
 	size := int(*out.ContentLength)
@@ -208,6 +217,8 @@ func GetStringObject(bucket string, key string) (string, error) {
 	}
 
 	value := bbuffer.String()
+
 	log.Debug().Str("bucket", bucket).Str("key", key).Str("value", value).Msg("Object readed from S3...")
+
 	return value, nil
 }

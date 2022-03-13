@@ -6,6 +6,7 @@ import (
 
 	"github.com/ortisan/router-go/internal/api"
 	"github.com/ortisan/router-go/internal/config"
+	errApp "github.com/ortisan/router-go/internal/error"
 	"github.com/ortisan/router-go/internal/loadbalancer"
 	"github.com/ortisan/router-go/internal/telemetry"
 	"github.com/rs/zerolog"
@@ -32,7 +33,7 @@ func main() {
 	// Config telemetry
 	tp, err := telemetry.Setup()
 	if err != nil {
-		panic(err)
+		panic(errApp.NewGenericError("Error to setup telemetry", err))
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -42,12 +43,15 @@ func main() {
 		ctx, cancel = context.WithTimeout(ctx, time.Second*5)
 		defer cancel()
 		if err := tp.Shutdown(ctx); err != nil {
-			panic(err)
+			panic(errApp.NewGenericError("Error shutdown telemetry", err))
+
 		}
 	}(ctx)
 
 	// Config load balancer
-	loadbalancer.Setup()
+	if err := loadbalancer.Setup(); err != nil {
+		panic(errApp.NewGenericError("Error to setup loadbalancer", err))
+	}
 
 	// Config server and routes
 	r := api.Setup()

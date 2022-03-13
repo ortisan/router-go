@@ -199,11 +199,11 @@ func (s *ServerPool) GetNextBackend() *Backend {
 	return nil
 }
 
-func (s *ServerPool) HandleRequest(c *gin.Context, pathUri string, method string, headers map[string][]string) {
+func (s *ServerPool) HandleRequest(c *gin.Context, pathUri string, method string, headers map[string][]string) error {
 
 	peer := s.GetNextBackend()
 	if peer == nil {
-		panic(errApp.NewGenericError("No backend servers was found", nil))
+		return errApp.NewGenericError("No backend servers was found", nil)
 	}
 
 	requestUri := fmt.Sprintf("%s%s", peer.URL.String(), pathUri)
@@ -218,7 +218,7 @@ func (s *ServerPool) HandleRequest(c *gin.Context, pathUri string, method string
 	client := &http.Client{}
 	req, err := http.NewRequestWithContext(ctx, method, requestUri, c.Request.Body)
 	if err != nil {
-		panic(errApp.NewGenericError("Error to create request", err))
+		return errApp.NewGenericError("Error to create request", err)
 	}
 
 	// Set trace id
@@ -235,16 +235,18 @@ func (s *ServerPool) HandleRequest(c *gin.Context, pathUri string, method string
 
 	resp, err := client.Do(req) // Call API
 	if err != nil {
-		panic(errApp.NewIntegrationError("Error to call API", err))
+		return errApp.NewIntegrationError("Error to call API", err)
 	}
 
 	defer resp.Body.Close() // Defer will close after this function ends
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		panic(errApp.NewIntegrationError("Error read response body", err))
+		errApp.NewIntegrationError("Error read response body", err)
 	}
 
 	c.Data(resp.StatusCode, resp.Header.Get(constant.ContentTypeHeaderName), body) // Data is returned
+
+	return nil
 }
 
 // doHealthCheck pings the backends and update the status
@@ -341,7 +343,7 @@ func HeadersDisabledInRedirection() func(string) bool {
 	}
 }
 
-func Setup() {
+func Setup() error {
 
 	serversConfig := config.ConfigObj.Servers
 
@@ -349,7 +351,7 @@ func Setup() {
 
 		serverUrl, err := url.Parse(server.EndpointUrl)
 		if err != nil {
-			panic(err)
+			return err
 		}
 
 		var serverPool *ServerPool
@@ -361,15 +363,17 @@ func Setup() {
 		}
 
 		// Update status status from cache db
-		serverKey := fmt.Sprintf("servers-%s", server.ServicePrefix)
-		jsonServer, err := repository.GetCacheValue(serverKey)
+		serverId := fmt.Sprintf("servers-%s", server.ServicePrefix)
+
+		jsonServer, err := repository.GetStringObject(BucketHealthCells, serverId)
+
 		var alive = false
 		if err != nil {
 			switch err.(type) {
 			case errApp.NotFoundError:
 				alive = true
 			default:
-				panic(err)
+				return err
 			}
 		}
 
@@ -397,6 +401,8 @@ func Setup() {
 
 	// start health checking
 	go healthCheck()
+
+	return nil
 }
 
 var ServerPoolsObj *ServerPools = NewServerPools()

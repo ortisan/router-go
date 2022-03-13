@@ -94,7 +94,6 @@ func HandleRequest(c *gin.Context) {
 		case <-time.After(loadbalancer.BackoffTimeout):
 			serverPool.HandleRequest(c, util.GetSubstringAfter(resource, servicePrefix), r.Method, r.Header)
 		}
-		return
 	}
 }
 
